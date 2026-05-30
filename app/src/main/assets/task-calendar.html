@@ -8,6 +8,15 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    databaseURL: "https://taskcal-834a4-default-rtdb.firebaseio.com"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+</script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   body { background: #F2F5FC; font-family: 'Finlandica', Georgia, serif; min-height: 100vh; padding-top: env(safe-area-inset-top, 32px); }
@@ -70,9 +79,19 @@ const getGreeting = () => {
   return { text: "Good evening", icon: "🌙" };
 };
 
-const storage = {
-  get: (k) => { try { return localStorage.getItem(k); } catch(e) { return null; } },
-  set: (k, v) => { try { localStorage.setItem(k, v); } catch(e) {} }
+// Firebase helpers
+const fbSave = (tasks) => {
+  db.ref("tasks").set(tasks);
+};
+const fbLoad = (callback) => {
+  db.ref("tasks").once("value", snap => {
+    callback(snap.val());
+  });
+};
+const fbListen = (callback) => {
+  db.ref("tasks").on("value", snap => {
+    callback(snap.val());
+  });
 };
 
 // ─── TASK CARD (Day View) ──────────────────────────────────────────────
@@ -237,14 +256,14 @@ function TaskCalendar() {
   const nudgeTimers = React.useRef({});
 
   React.useEffect(() => {
-    const raw = storage.get("rone-tasks-v2");
-    if (raw) {
-      let data = JSON.parse(raw);
-      const td = todayStr();
-      data = data.map(t => (!t.completed && t.date < td) ? { ...t, date: td } : t);
-      setTasks(data);
-      storage.set("rone-tasks-v2", JSON.stringify(data));
-    }
+    fbListen(data => {
+      if (data) {
+        const td = todayStr();
+        let arr = Array.isArray(data) ? data : Object.values(data);
+        arr = arr.filter(Boolean).map(t => (!t.completed && t.date < td) ? { ...t, date: td } : t);
+        setTasks(arr);
+      }
+    });
   }, []);
 
   React.useEffect(() => {
@@ -271,7 +290,7 @@ function TaskCalendar() {
     return () => Object.values(nudgeTimers.current).forEach(clearTimeout);
   }, [tasks]);
 
-  const save = (t) => storage.set("rone-tasks-v2", JSON.stringify(t));
+  const save = (t) => fbSave(t);
 
   const getNextColor = () => {
     const used = tasks.map(t => t.color);
