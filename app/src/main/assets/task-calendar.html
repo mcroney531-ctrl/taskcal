@@ -147,10 +147,12 @@ function AddModal({ selectedDay, onClose, onAdd, getNextColor }) {
   const [color, setColor] = React.useState(() => getNextColor());
   const [hexOpen, setHexOpen] = React.useState(false);
   const [hexInput, setHexInput] = React.useState("");
+  const [nudgeMins, setNudgeMins] = React.useState("");
 
   const submit = () => {
     if (!title.trim()) return;
-    onAdd({ title: title.trim(), time, color, date: selectedDay });
+    const nudgeAt = nudgeMins ? Date.now() + parseInt(nudgeMins) * 60000 : null;
+    onAdd({ title: title.trim(), time, color, date: selectedDay, nudgeAt });
     onClose();
   };
 
@@ -172,6 +174,16 @@ function AddModal({ selectedDay, onClose, onAdd, getNextColor }) {
           <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"8px", fontWeight:"600" }}>TIME — OPTIONAL</div>
           <input type="time" value={time} onChange={e => setTime(e.target.value)}
             style={{ background:"#F4F7FF", border:"2px solid #E0E8FF", borderRadius:"12px", padding:"10px 14px", color:"#1A1A1A", fontSize:"14px", fontFamily:"inherit", outline:"none" }}/>
+        </div>
+
+        <div style={{ marginBottom:"16px" }}>
+          <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"8px", fontWeight:"600" }}>🔔 NUDGE IN — OPTIONAL</div>
+          <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+            <input type="number" min="1" max="999" value={nudgeMins} onChange={e => setNudgeMins(e.target.value)} placeholder="e.g. 30"
+              style={{ background:"#F4F7FF", border:"2px solid #E0E8FF", borderRadius:"12px", padding:"10px 14px", color:"#1A1A1A", fontSize:"14px", fontFamily:"inherit", outline:"none", width:"100px" }}/>
+            <span style={{ fontSize:"13px", color:"#AAA", fontWeight:"500" }}>minutes</span>
+            {nudgeMins && <span style={{ fontSize:"12px", color:NAVY, fontWeight:"600" }}>⏰ in {nudgeMins}m</span>}
+          </div>
         </div>
 
         <div style={{ marginBottom:"24px" }}>
@@ -221,6 +233,8 @@ function TaskCalendar() {
   const [modalDay, setModalDay] = React.useState(todayStr());
   const [draggedId, setDraggedId] = React.useState(null);
   const [dragOverDay, setDragOverDay] = React.useState(null);
+  const [nudgeBanner, setNudgeBanner] = React.useState(null);
+  const nudgeTimers = React.useRef({});
 
   React.useEffect(() => {
     const raw = storage.get("rone-tasks-v2");
@@ -233,6 +247,30 @@ function TaskCalendar() {
     }
   }, []);
 
+  React.useEffect(() => {
+    // Clear old timers
+    Object.values(nudgeTimers.current).forEach(clearTimeout);
+    nudgeTimers.current = {};
+    // Set timers for pending nudges
+    tasks.forEach(task => {
+      if (task.nudgeAt && !task.completed && !task.nudgeFired) {
+        const delay = task.nudgeAt - Date.now();
+        if (delay > 0) {
+          nudgeTimers.current[task.id] = setTimeout(() => {
+            setNudgeBanner({ title: task.title, color: task.color, id: task.id });
+            // Mark nudge as fired
+            setTasks(prev => {
+              const updated = prev.map(t => t.id === task.id ? { ...t, nudgeFired: true } : t);
+              storage.set("rone-tasks-v2", JSON.stringify(updated));
+              return updated;
+            });
+          }, delay);
+        }
+      }
+    });
+    return () => Object.values(nudgeTimers.current).forEach(clearTimeout);
+  }, [tasks]);
+
   const save = (t) => storage.set("rone-tasks-v2", JSON.stringify(t));
 
   const getNextColor = () => {
@@ -241,8 +279,8 @@ function TaskCalendar() {
     return PALETTE[tasks.length % PALETTE.length];
   };
 
-  const addTask = ({ title, time, color, date }) => {
-    const newTask = { id: Date.now().toString(), title, time, color, date, completed: false };
+  const addTask = ({ title, time, color, date, nudgeAt }) => {
+    const newTask = { id: Date.now().toString(), title, time, color, date, completed: false, nudgeAt: nudgeAt || null, nudgeFired: false };
     const updated = [...tasks, newTask];
     setTasks(updated); save(updated);
   };
@@ -474,6 +512,19 @@ function TaskCalendar() {
       </div>
       {showModal && (
         <AddModal selectedDay={modalDay} onClose={() => setShowModal(false)} onAdd={addTask} getNextColor={getNextColor}/>
+      )}
+
+      {nudgeBanner && (
+        <div style={{ position:"fixed", top:"env(safe-area-inset-top, 32px)", left:"16px", right:"16px", zIndex:300, animation:"slideUp 0.3s ease" }}>
+          <div style={{ background: nudgeBanner.color, borderRadius:"18px", padding:"18px 20px", boxShadow:, display:"flex", alignItems:"center", justifyContent:"space-between", position:"relative", overflow:"hidden" }}>
+            <div style={{ position:"absolute", top:0, left:0, right:0, height:"50%", background:"linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)", borderRadius:"18px 18px 0 0", pointerEvents:"none" }}/>
+            <div>
+              <div style={{ fontSize:"11px", fontWeight:"700", color:"rgba(0,0,0,0.5)", letterSpacing:"0.1em", marginBottom:"3px" }}>🔔 NUDGE</div>
+              <div style={{ fontSize:"17px", fontWeight:"700", color:"#fff", textShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>{nudgeBanner.title}</div>
+            </div>
+            <button onClick={() => setNudgeBanner(null)} style={{ background:"rgba(0,0,0,0.15)", border:"none", borderRadius:"50%", color:"#fff", width:"32px", height:"32px", cursor:"pointer", fontSize:"16px", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit", flexShrink:0 }}>✕</button>
+          </div>
+        </div>
       )}
     </div>
   );
