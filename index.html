@@ -15,7 +15,7 @@
     databaseURL: "https://taskcal-834a4-default-rtdb.firebaseio.com"
   };
   firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+  window.db = firebase.database();
 </script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
