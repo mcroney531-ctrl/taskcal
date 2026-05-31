@@ -134,7 +134,14 @@ const getAutoIcon = (title, categoryId) => {
 
 // Firebase helpers
 const fbSave = (tasks) => {
-  db.ref("tasks").set(tasks);
+  // Store as object keyed by task ID — avoids Firebase array conversion issues
+  if (!tasks || tasks.length === 0) {
+    db.ref("tasks").set(null);
+    return;
+  }
+  const obj = {};
+  tasks.forEach(t => { if (t && t.id) obj[t.id] = t; });
+  db.ref("tasks").set(obj);
 };
 const fbLoad = (callback) => {
   db.ref("tasks").once("value", snap => {
@@ -283,7 +290,7 @@ function AddModal({ selectedDay, onClose, onAdd, getNextColor, categories }) {
         <div style={{ width:"40px", height:"4px", background:"#E0E6F0", borderRadius:"2px", margin:"0 auto 20px" }} />
         <div style={{ fontSize:"13px", color:NAVY, letterSpacing:"0.05em", marginBottom:"18px", fontWeight:"600" }}>📋 {label}</div>
 
-        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => e.key==="Enter" && submit()}
+        <input value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => e.key==="Enter" && submit()}
           placeholder="What needs doing..."
           style={{ width:"100%", background:"#F4F7FF", border:`2px solid #E0E8FF`, borderRadius:"14px", padding:"14px 16px", color:"#1A1A1A", fontSize:"16px", outline:"none", marginBottom:"14px" }}/>
 
@@ -482,7 +489,7 @@ function TaskCalendar() {
       if (data) {
         const td = todayStr();
         let arr = Array.isArray(data) ? data : Object.values(data);
-        arr = arr.filter(Boolean).map(t => (!t.recurrence && !t.completed && t.date < td) ? { ...t, date: td } : t);
+        arr = arr.filter(t => t && t.id).map(t => (!t.recurrence && !t.completed && t.date < td) ? { ...t, date: td } : t);
         setTasks(arr);
       }
     });
@@ -640,7 +647,8 @@ function TaskCalendar() {
         </div>
 
         {/* Add button */}
-        <div style={{ padding:"8px 18px 0", paddingBottom:"max(20px, env(safe-area-inset-bottom, 20px))", display:"flex", justifyContent:"flex-end" }}>
+        <div style={{ height:"90px" }} />
+        <div style={{ position:"fixed", bottom:"max(24px, env(safe-area-inset-bottom, 24px))", right:"20px", zIndex:20 }}>
           <button onClick={() => openModal(currentDay)} style={{
             background:`linear-gradient(135deg, ${NAVY}, ${NAVY2})`, border:"none", borderRadius:"100px",
             color:"#fff", padding:"14px 24px", cursor:"pointer", fontSize:"16px", fontWeight:"700",
