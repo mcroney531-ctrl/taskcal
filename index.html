@@ -41,6 +41,24 @@ const NAVY = "#1B3A6B";
 const NAVY2 = "#2A5298";
 const BG = "#F2F5FC";
 const PALETTE = ["#E85D4A","#F4A261","#2A9D8F","#457B9D","#9B5DE5","#F15BB5","#00BBF9","#FFBE0B"];
+const DEFAULT_CATEGORIES = [
+  { id: "build", title: "Build/Project", color: "#457B9D" },
+  { id: "cleaning", title: "Cleaning", color: "#2A9D8F" },
+  { id: "custom", title: "Custom", color: "#9B5DE5" },
+  { id: "finance", title: "Finance", color: "#FFBE0B" },
+  { id: "housework", title: "Housework", color: "#F4A261" },
+  { id: "work", title: "Work", color: "#1B3A6B" },
+];
+
+const CATEGORY_ICON_MAP = {
+  build: ["🔨","⚙️","🏗️","💻","🛠️","🎯"],
+  cleaning: ["🧹","🧽","🫧","🪣","✨","🧴"],
+  custom: ["🌟","💎","🎨","✨","🔑","🎭"],
+  finance: ["💰","💳","📊","🏦","💵","📈"],
+  housework: ["🏠","🛒","🍳","🌿","🪴","🧺"],
+  work: ["💼","📋","📧","🤝","📊","🖥️"],
+};
+
 const CARD_SHADOW = (color) => {
   // darken the color for 3D bottom edge
   return `0 6px 0 rgba(0,0,0,0.18), 0 10px 24px rgba(0,0,0,0.10)`;
@@ -79,6 +97,41 @@ const getGreeting = () => {
   return { text: "Good evening", icon: "🌙" };
 };
 
+const getAutoIcon = (title, categoryId) => {
+  if (categoryId && CATEGORY_ICON_MAP[categoryId]) {
+    const icons = CATEGORY_ICON_MAP[categoryId];
+    return icons[Math.floor(Math.abs((title || "").charCodeAt(0) || 0)) % icons.length];
+  }
+  const t = title.toLowerCase();
+  if (/meet|call|zoom|teams|standup|sync|chat/.test(t)) return "🤝";
+  if (/email|mail|send|message|text/.test(t)) return "📧";
+  if (/lunch|dinner|breakfast|eat|food|coffee|restaurant/.test(t)) return "🍽️";
+  if (/workout|gym|run|exercise|walk|yoga|training/.test(t)) return "💪";
+  if (/doctor|dentist|medical|health|appointment|therapy/.test(t)) return "🏥";
+  if (/pay|bill|invoice|budget|money|bank|finance/.test(t)) return "💰";
+  if (/read|book|study|learn|course|research/.test(t)) return "📚";
+  if (/write|draft|blog|post|article|report|essay/.test(t)) return "✍️";
+  if (/review|check|feedback|edit|proofread/.test(t)) return "🔍";
+  if (/buy|shop|order|purchase|grocery/.test(t)) return "🛒";
+  if (/travel|flight|trip|hotel|pack/.test(t)) return "✈️";
+  if (/birthday|party|celebrate|event|wedding/.test(t)) return "🎉";
+  if (/fix|repair|bug|issue|problem|debug/.test(t)) return "🔧";
+  if (/design|create|build|make|develop/.test(t)) return "🎨";
+  if (/present|pitch|demo|show|slide/.test(t)) return "📊";
+  if (/plan|strategy|roadmap|outline/.test(t)) return "🗺️";
+  if (/clean|organize|sort|tidy/.test(t)) return "🧹";
+  if (/urgent|asap|priority|important|deadline/.test(t)) return "🔥";
+  if (/idea|brainstorm|think|concept/.test(t)) return "💡";
+  if (/follow|remind|check.in/.test(t)) return "🔔";
+  if (/interview|hire|recruit/.test(t)) return "👔";
+  if (/video|record|edit|film/.test(t)) return "🎬";
+  if (/music|practice|rehearse|play/.test(t)) return "🎵";
+  if (/ai|prompt|claude|gpt|model/.test(t)) return "🤖";
+  if (/workshop|train|facilitat/.test(t)) return "🏫";
+  const defaults = ["📌","🎯","⚡","🌟","✅","🚀","💎","🔑"];
+  return defaults[Math.floor(Math.abs(title.charCodeAt(0) + title.length)) % defaults.length];
+};
+
 // Firebase helpers
 const fbSave = (tasks) => {
   db.ref("tasks").set(tasks);
@@ -93,36 +146,55 @@ const fbListen = (callback) => {
     callback(snap.val());
   });
 };
+const fbSaveCategories = (cats) => db.ref("categories").set(cats);
+const fbListenCategories = (callback) => {
+  db.ref("categories").once("value", snap => callback(snap.val()));
+};
 
 // ─── TASK CARD (Day View) ──────────────────────────────────────────────
-function DayTaskCard({ task, onDone, onDelete, index }) {
+function DayTaskCard({ task, onDone, onDelete, index, dateStr, isCompleted, categories }) {
   return (
     <div className="task-card" style={{
       background: `linear-gradient(135deg, ${task.color}EE, ${task.color}CC)`,
       borderRadius: "16px",
       padding: "16px 18px 14px",
       boxShadow: CARD_SHADOW(task.color),
-      opacity: task.completed ? 0.45 : 1,
+      opacity: isCompleted ? 0.45 : 1,
       animation: `slideUp 0.3s ease ${index * 0.06}s both`,
       position: "relative",
       overflow: "hidden",
+      border: task.recurrence === 'daily' ? "3px solid rgba(0,0,0,0.35)" : (task.categoryId ? "3px solid rgba(0,0,0,0.2)" : "3px solid transparent"),
+      paddingTop: (task.recurrence === 'daily' || task.categoryId) ? "24px" : "16px",
     }}>
       {/* Decorative shine */}
       <div style={{ position:"absolute", top:0, left:0, right:0, height:"50%", background:"linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%)", borderRadius:"16px 16px 0 0", pointerEvents:"none" }} />
+      {(task.recurrence === 'daily' || task.categoryId) && (() => {
+        const cat = task.categoryId ? (categories||[]).find(c => c.id === task.categoryId) : null;
+        const catTitle = cat ? cat.title.toUpperCase() : null;
+        let label = "";
+        if (task.recurrence === 'daily' && catTitle) label = `DAILY: ${catTitle}`;
+        else if (task.recurrence === 'daily') label = "DAILY";
+        else if (catTitle) label = catTitle;
+        return label ? <div style={{ position:"absolute", top:"8px", left:"10px", fontSize:"8px", fontWeight:"800", color:"rgba(0,0,0,0.45)", letterSpacing:"0.15em" }}>{label}</div> : null;
+      })()}
       {task.time && (
         <div style={{ fontSize:"12px", fontWeight:"700", color:"rgba(0,0,0,0.55)", letterSpacing:"0.06em", marginBottom:"4px" }}>
           🕐 {task.time}
         </div>
       )}
-      <div style={{ fontSize:"17px", fontWeight:"600", color:"#fff", lineHeight:1.35, textDecoration: task.completed ? "line-through" : "none", textShadow:"0 1px 3px rgba(0,0,0,0.2)", wordBreak:"break-word" }}>
-        {task.title}
+      <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
+        <div style={{ fontSize:"26px", lineHeight:1, flexShrink:0, filter:"drop-shadow(0 2px 3px rgba(0,0,0,0.15))" }}>{task.icon || "📌"}</div>
+        <div style={{ fontSize:"17px", fontWeight:"600", color:"#fff", lineHeight:1.35, textDecoration: isCompleted ? "line-through" : "none", textShadow:"0 1px 3px rgba(0,0,0,0.2)", wordBreak:"break-word", flex:1 }}>
+          {task.recurrence && <span style={{fontSize:"11px", marginRight:"5px", opacity:0.75}}>🔁</span>}
+          {task.title}
+        </div>
       </div>
       <div style={{ display:"flex", gap:"6px", marginTop:"10px" }}>
-        <button onClick={() => onDone(task.id)} style={{
+        <button onClick={() => onDone(task.id, dateStr)} style={{
           background:"rgba(255,255,255,0.3)", border:"none", borderRadius:"20px", color:"#fff",
           cursor:"pointer", fontSize:"11px", padding:"4px 12px", fontFamily:"inherit", fontWeight:"600", letterSpacing:"0.05em",
           backdropFilter:"blur(4px)", boxShadow:"0 2px 4px rgba(0,0,0,0.1)"
-        }}>{task.completed ? "↩ Undo" : "✓ Done"}</button>
+        }}>{isCompleted ? "↩ Undo" : "✓ Done"}</button>
         <button onClick={() => onDelete(task.id)} style={{
           background:"rgba(0,0,0,0.15)", border:"none", borderRadius:"20px", color:"rgba(255,255,255,0.85)",
           cursor:"pointer", fontSize:"11px", padding:"4px 12px", fontFamily:"inherit", fontWeight:"600",
@@ -134,7 +206,7 @@ function DayTaskCard({ task, onDone, onDelete, index }) {
 }
 
 // ─── WEEK TASK CARD ────────────────────────────────────────────────────
-function WeekTaskCard({ task, onDone, onDelete, onDragStart, onDragEnd, isDragging }) {
+function WeekTaskCard({ task, onDone, onDelete, onDragStart, onDragEnd, isDragging, dateStr, isCompleted, categories }) {
   return (
     <div draggable onDragStart={e => onDragStart(e, task.id)} onDragEnd={onDragEnd}
       style={{
@@ -142,17 +214,31 @@ function WeekTaskCard({ task, onDone, onDelete, onDragStart, onDragEnd, isDraggi
         borderRadius: "10px",
         padding: "8px 9px",
         boxShadow: isDragging ? `0 8px 20px rgba(0,0,0,0.25)` : `0 4px 0 rgba(0,0,0,0.15), 0 6px 12px rgba(0,0,0,0.08)`,
-        opacity: task.completed ? 0.4 : 1,
+        opacity: isCompleted ? 0.4 : 1,
         cursor: "grab",
         position: "relative", overflow: "hidden",
         transform: isDragging ? "rotate(2deg) scale(1.02)" : "none",
         transition: "box-shadow 0.15s, opacity 0.2s",
       }}>
       <div style={{ position:"absolute", top:0, left:0, right:0, height:"40%", background:"linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 100%)", borderRadius:"10px 10px 0 0", pointerEvents:"none" }}/>
+      {(() => {
+        const cat = task.categoryId ? (categories||[]).find(c => c.id === task.categoryId) : null;
+        const catTitle = cat ? cat.title.toUpperCase() : null;
+        let label = "";
+        if (task.recurrence === 'daily' && catTitle) label = `DAILY: ${catTitle}`;
+        else if (task.recurrence === 'daily') label = "DAILY";
+        else if (catTitle) label = catTitle;
+        return label ? <div style={{ fontSize:"7px", fontWeight:"800", color:"rgba(0,0,0,0.4)", letterSpacing:"0.12em", marginBottom:"2px" }}>{label}</div> : null;
+      })()}
       {task.time && <div style={{ fontSize:"8px", fontWeight:"700", color:"rgba(0,0,0,0.5)", marginBottom:"2px", letterSpacing:"0.05em" }}>{task.time}</div>}
-      <div style={{ fontSize:"10px", color:"#fff", fontWeight:"600", lineHeight:1.3, textDecoration: task.completed ? "line-through" : "none", textShadow:"0 1px 2px rgba(0,0,0,0.2)", wordBreak:"break-word" }}>{task.title}</div>
+      <div style={{ display:"flex", alignItems:"flex-start", gap:"5px" }}>
+        <span style={{ fontSize:"13px", lineHeight:1.2, flexShrink:0 }}>{task.icon || "📌"}</span>
+        <div style={{ fontSize:"10px", color:"#fff", fontWeight:"600", lineHeight:1.3, textDecoration: isCompleted ? "line-through" : "none", textShadow:"0 1px 2px rgba(0,0,0,0.2)", wordBreak:"break-word" }}>
+          {task.recurrence && <span style={{fontSize:"7px", marginRight:"2px", opacity:0.75}}>🔁</span>}{task.title}
+        </div>
+      </div>
       <div style={{ display:"flex", gap:"3px", marginTop:"5px" }}>
-        <button onClick={() => onDone(task.id)} style={{ background:"rgba(255,255,255,0.28)", border:"none", borderRadius:"10px", color:"#fff", cursor:"pointer", fontSize:"7px", padding:"2px 6px", fontFamily:"inherit", fontWeight:"600" }}>{task.completed ? "↩" : "✓"}</button>
+        <button onClick={() => onDone(task.id, dateStr)} style={{ background:"rgba(255,255,255,0.28)", border:"none", borderRadius:"10px", color:"#fff", cursor:"pointer", fontSize:"7px", padding:"2px 6px", fontFamily:"inherit", fontWeight:"600" }}>{isCompleted ? "↩" : "✓"}</button>
         <button onClick={() => onDelete(task.id)} style={{ background:"rgba(0,0,0,0.12)", border:"none", borderRadius:"10px", color:"rgba(255,255,255,0.85)", cursor:"pointer", fontSize:"7px", padding:"2px 6px", fontFamily:"inherit", fontWeight:"600" }}>✕</button>
       </div>
     </div>
@@ -160,18 +246,30 @@ function WeekTaskCard({ task, onDone, onDelete, onDragStart, onDragEnd, isDraggi
 }
 
 // ─── ADD TASK MODAL ────────────────────────────────────────────────────
-function AddModal({ selectedDay, onClose, onAdd, getNextColor }) {
+function AddModal({ selectedDay, onClose, onAdd, getNextColor, categories }) {
   const [title, setTitle] = React.useState("");
   const [time, setTime] = React.useState("");
   const [color, setColor] = React.useState(() => getNextColor());
   const [hexOpen, setHexOpen] = React.useState(false);
   const [hexInput, setHexInput] = React.useState("");
   const [nudgeMins, setNudgeMins] = React.useState("");
+  const [recType, setRecType] = React.useState(null); // null | 'daily' | 'custom'
+  const [selectedCatId, setSelectedCatId] = React.useState(null);
+  const [customIcon, setCustomIcon] = React.useState("");
+  const [iconPickerOpen, setIconPickerOpen] = React.useState(false);
+  const [customDays, setCustomDays] = React.useState([]);
+  const DAY_LABELS_REC = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+  const toggleCustomDay = (d) => setCustomDays(prev => prev.includes(d) ? prev.filter(x=>x!==d) : [...prev, d]);
 
   const submit = () => {
     if (!title.trim()) return;
     const nudgeAt = nudgeMins ? Date.now() + parseInt(nudgeMins) * 60000 : null;
-    onAdd({ title: title.trim(), time, color, date: selectedDay, nudgeAt });
+    let recurrence = null;
+    if (recType === 'daily') recurrence = 'daily';
+    else if (recType === 'custom' && customDays.length > 0) recurrence = customDays;
+    const resolvedIcon = customIcon.trim() || getAutoIcon(title.trim(), selectedCatId);
+    onAdd({ title: title.trim(), time, color, date: selectedDay, nudgeAt, recurrence, icon: resolvedIcon, categoryId: selectedCatId });
     onClose();
   };
 
@@ -196,6 +294,24 @@ function AddModal({ selectedDay, onClose, onAdd, getNextColor }) {
         </div>
 
         <div style={{ marginBottom:"16px" }}>
+          <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"8px", fontWeight:"600" }}>ICON — OPTIONAL</div>
+          <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+            <button onClick={() => setIconPickerOpen(!iconPickerOpen)}
+              style={{ width:"46px", height:"46px", borderRadius:"12px", background:"#F4F7FF", border:`2px solid ${iconPickerOpen ? NAVY : '#E0E8FF'}`, cursor:"pointer", fontSize:"22px", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.12s" }}>
+              {customIcon || <span style={{fontSize:"12px", color:"#AAA", fontWeight:"600"}}>auto</span>}
+            </button>
+            {iconPickerOpen && (
+              <div style={{ display:"flex", flexDirection:"column", gap:"6px", flex:1 }}>
+                <input value={customIcon} onChange={e => setCustomIcon(e.target.value)} placeholder="Paste or type any emoji 🎯"
+                  style={{ background:"#F4F7FF", border:"2px solid #E0E8FF", borderRadius:"10px", padding:"8px 12px", color:"#1A1A1A", fontSize:"18px", fontFamily:"inherit", outline:"none", width:"100%" }}/>
+                {customIcon && <button onClick={() => setCustomIcon("")} style={{ background:"none", border:"none", color:"#AAB8D0", cursor:"pointer", fontSize:"11px", fontFamily:"inherit", textAlign:"left", padding:0 }}>← reset to auto</button>}
+              </div>
+            )}
+            {!iconPickerOpen && <span style={{ fontSize:"12px", color:"#AAB8D0" }}>auto-picks based on title</span>}
+          </div>
+        </div>
+
+        <div style={{ marginBottom:"16px" }}>
           <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"8px", fontWeight:"600" }}>🔔 NUDGE IN — OPTIONAL</div>
           <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
             <input type="number" min="1" max="999" value={nudgeMins} onChange={e => setNudgeMins(e.target.value)} placeholder="e.g. 30"
@@ -203,6 +319,56 @@ function AddModal({ selectedDay, onClose, onAdd, getNextColor }) {
             <span style={{ fontSize:"13px", color:"#AAA", fontWeight:"500" }}>minutes</span>
             {nudgeMins && <span style={{ fontSize:"12px", color:NAVY, fontWeight:"600" }}>⏰ in {nudgeMins}m</span>}
           </div>
+        </div>
+
+        <div style={{ marginBottom:"16px" }}>
+          <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"10px", fontWeight:"600" }}>🏷️ CATEGORY — OPTIONAL</div>
+          <div style={{ display:"flex", gap:"7px", flexWrap:"wrap" }}>
+            {categories.map(cat => (
+              <button key={cat.id} onClick={() => {
+                if (selectedCatId === cat.id) { setSelectedCatId(null); }
+                else { setSelectedCatId(cat.id); setColor(cat.color); }
+              }} style={{
+                padding:"6px 12px", borderRadius:"20px", cursor:"pointer", fontSize:"12px", fontWeight:"600", fontFamily:"inherit",
+                background: selectedCatId === cat.id ? `linear-gradient(135deg, ${cat.color}EE, ${cat.color}BB)` : "#F4F7FF",
+                color: selectedCatId === cat.id ? "#fff" : "#666",
+                border: selectedCatId === cat.id ? `2px solid ${cat.color}` : "2px solid #E0E8FF",
+                boxShadow: selectedCatId === cat.id ? `0 3px 8px ${cat.color}55` : "none",
+                transition:"all 0.12s"
+              }}>{cat.title}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom:"16px" }}>
+          <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"10px", fontWeight:"600" }}>🔁 RECURRENCE — OPTIONAL</div>
+          <div style={{ display:"flex", gap:"10px", alignItems:"center" }}>
+            <label style={{ display:"flex", alignItems:"center", gap:"6px", cursor:"pointer", fontSize:"14px", color:"#444", fontWeight:"500" }}>
+              <input type="checkbox" checked={recType==='daily'} onChange={e => setRecType(e.target.checked ? 'daily' : null)}
+                style={{ width:"16px", height:"16px", accentColor:NAVY, cursor:"pointer" }}/>
+              Daily
+            </label>
+            <label style={{ display:"flex", alignItems:"center", gap:"6px", cursor:"pointer", fontSize:"14px", color:"#444", fontWeight:"500" }}>
+              <input type="checkbox" checked={recType==='custom'} onChange={e => { setRecType(e.target.checked ? 'custom' : null); setCustomDays([]); }}
+                style={{ width:"16px", height:"16px", accentColor:NAVY, cursor:"pointer" }}/>
+              Custom
+            </label>
+          </div>
+          {recType === 'custom' && (
+            <div style={{ display:"flex", gap:"6px", marginTop:"10px", flexWrap:"wrap" }}>
+              {DAY_LABELS_REC.map((label, i) => (
+                <button key={i} onClick={() => toggleCustomDay(i)}
+                  style={{ width:"36px", height:"36px", borderRadius:"50%", border:`2px solid ${customDays.includes(i) ? NAVY : '#E0E8FF'}`,
+                    background: customDays.includes(i) ? `linear-gradient(135deg, ${NAVY}, ${NAVY2})` : '#F4F7FF',
+                    color: customDays.includes(i) ? '#fff' : '#888',
+                    cursor:"pointer", fontSize:"11px", fontWeight:"700", fontFamily:"inherit",
+                    boxShadow: customDays.includes(i) ? `0 3px 8px rgba(27,58,107,0.3)` : 'none',
+                    transition:"all 0.12s" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ marginBottom:"24px" }}>
@@ -241,6 +407,49 @@ function AddModal({ selectedDay, onClose, onAdd, getNextColor }) {
   );
 }
 
+// ─── CATEGORY MANAGER MODAL ───────────────────────────────────────────
+function CategoryManager({ categories, onClose, onSave }) {
+  const [cats, setCats] = React.useState(categories.map(c => ({...c})));
+  const [hexOpenId, setHexOpenId] = React.useState(null);
+
+  const updateTitle = (id, title) => setCats(prev => prev.map(c => c.id===id ? {...c, title} : c));
+  const updateColor = (id, color) => setCats(prev => prev.map(c => c.id===id ? {...c, color} : c));
+
+  return (
+    <div onClick={e => { if(e.target===e.currentTarget) onClose(); }}
+      style={{ position:"fixed", inset:0, background:"rgba(10,20,50,0.5)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:300, backdropFilter:"blur(6px)" }}>
+      <div style={{ background:"#fff", borderRadius:"24px 24px 0 0", padding:"24px 22px 36px", width:"100%", maxWidth:"480px", boxShadow:"0 -20px 60px rgba(27,58,107,0.25)", maxHeight:"80vh", overflowY:"auto" }}>
+        <div style={{ width:"40px", height:"4px", background:"#E0E6F0", borderRadius:"2px", margin:"0 auto 18px" }}/>
+        <div style={{ fontSize:"14px", color:NAVY, fontWeight:"700", marginBottom:"18px", letterSpacing:"0.05em" }}>🏷️ Edit Categories</div>
+        {cats.map(cat => (
+          <div key={cat.id} style={{ marginBottom:"14px", background:"#F4F7FF", borderRadius:"14px", padding:"12px 14px", border:"2px solid #E0E8FF" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom: hexOpenId===cat.id ? "10px" : "0" }}>
+              <button onClick={() => setHexOpenId(hexOpenId===cat.id ? null : cat.id)}
+                style={{ width:"32px", height:"32px", borderRadius:"50%", background:`linear-gradient(135deg, ${cat.color}EE, ${cat.color}AA)`, border:"2px solid #DDD", cursor:"pointer", padding:0, flexShrink:0, boxShadow:`0 3px 8px ${cat.color}55` }}/>
+              <input value={cat.title} onChange={e => updateTitle(cat.id, e.target.value)}
+                style={{ flex:1, background:"#fff", border:"2px solid #E0E8FF", borderRadius:"10px", padding:"8px 12px", color:"#1A1A1A", fontSize:"14px", fontFamily:"inherit", outline:"none", fontWeight:"600" }}/>
+            </div>
+            {hexOpenId === cat.id && (
+              <div style={{ display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}>
+                {["#E85D4A","#F4A261","#2A9D8F","#457B9D","#9B5DE5","#F15BB5","#00BBF9","#FFBE0B","#1B3A6B","#2A5298"].map(c => (
+                  <button key={c} onClick={() => updateColor(cat.id, c)}
+                    style={{ width:"24px", height:"24px", borderRadius:"50%", background:c, border: cat.color===c ? `3px solid #1A1A1A` : "3px solid transparent", cursor:"pointer", padding:0, transition:"transform 0.1s", transform: cat.color===c ? "scale(1.2)" : "scale(1)" }}/>
+                ))}
+                <input placeholder="#hex" maxLength={7} onChange={e => { if(/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) updateColor(cat.id, e.target.value); }}
+                  style={{ background:"#fff", border:"2px solid #E0E8FF", borderRadius:"8px", padding:"5px 8px", color:"#1A1A1A", fontSize:"11px", fontFamily:"inherit", outline:"none", width:"70px" }}/>
+              </div>
+            )}
+          </div>
+        ))}
+        <div style={{ display:"flex", gap:"10px", marginTop:"6px" }}>
+          <button onClick={onClose} style={{ flex:1, background:"#F4F7FF", border:"2px solid #E0E8FF", color:"#888", padding:"12px", borderRadius:"12px", cursor:"pointer", fontSize:"13px", fontFamily:"inherit", fontWeight:"600" }}>Cancel</button>
+          <button onClick={() => { onSave(cats); onClose(); }} style={{ flex:2, background:`linear-gradient(135deg, ${NAVY}, ${NAVY2})`, border:"none", color:"#fff", padding:"12px", borderRadius:"12px", cursor:"pointer", fontSize:"13px", fontFamily:"inherit", fontWeight:"700", boxShadow:`0 4px 0 rgba(0,0,0,0.2)` }}>Save Categories ✓</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN APP ──────────────────────────────────────────────────────────
 function TaskCalendar() {
   const [tasks, setTasks] = React.useState([]);
@@ -253,14 +462,27 @@ function TaskCalendar() {
   const [draggedId, setDraggedId] = React.useState(null);
   const [dragOverDay, setDragOverDay] = React.useState(null);
   const [nudgeBanner, setNudgeBanner] = React.useState(null);
+  const [categories, setCategories] = React.useState(DEFAULT_CATEGORIES);
+  const [showCatManager, setShowCatManager] = React.useState(false);
   const nudgeTimers = React.useRef({});
+
+  React.useEffect(() => {
+    fbListenCategories(data => {
+      if (data) {
+        const arr = Array.isArray(data) ? data : Object.values(data);
+        setCategories(arr.filter(Boolean));
+      } else {
+        fbSaveCategories(DEFAULT_CATEGORIES);
+      }
+    });
+  }, []);
 
   React.useEffect(() => {
     fbListen(data => {
       if (data) {
         const td = todayStr();
         let arr = Array.isArray(data) ? data : Object.values(data);
-        arr = arr.filter(Boolean).map(t => (!t.completed && t.date < td) ? { ...t, date: td } : t);
+        arr = arr.filter(Boolean).map(t => (!t.recurrence && !t.completed && t.date < td) ? { ...t, date: td } : t);
         setTasks(arr);
       }
     });
@@ -280,7 +502,7 @@ function TaskCalendar() {
             // Mark nudge as fired
             setTasks(prev => {
               const updated = prev.map(t => t.id === task.id ? { ...t, nudgeFired: true } : t);
-              storage.set("rone-tasks-v2", JSON.stringify(updated));
+              fbSave(updated);
               return updated;
             });
           }, delay);
@@ -298,14 +520,39 @@ function TaskCalendar() {
     return PALETTE[tasks.length % PALETTE.length];
   };
 
-  const addTask = ({ title, time, color, date, nudgeAt }) => {
-    const newTask = { id: Date.now().toString(), title, time, color, date, completed: false, nudgeAt: nudgeAt || null, nudgeFired: false };
+  const isCompleted = (task, dateStr) => {
+    if (!task.recurrence) return task.completed;
+    return Array.isArray(task.completedDates) && task.completedDates.includes(dateStr);
+  };
+
+  const getDayTasks = (dateStr) => {
+    const d = parseDate(dateStr);
+    const dow = d.getDay();
+    return tasks.filter(t => {
+      if (!t.recurrence) return t.date === dateStr;
+      if (dateStr < t.date) return false;
+      if (t.recurrence === 'daily') return true;
+      if (Array.isArray(t.recurrence)) return t.recurrence.includes(dow);
+      return false;
+    });
+  };
+
+  const addTask = ({ title, time, color, date, nudgeAt, recurrence, icon, categoryId }) => {
+    const newTask = { id: Date.now().toString(), title, time, color, date, completed: false, completedDates: [], recurrence: recurrence || null, nudgeAt: nudgeAt || null, nudgeFired: false, icon: icon || getAutoIcon(title, categoryId), categoryId: categoryId || null };
     const updated = [...tasks, newTask];
     setTasks(updated); save(updated);
   };
 
-  const toggleDone = (id) => {
-    const updated = tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
+  const toggleDone = (id, dateStr) => {
+    const updated = tasks.map(t => {
+      if (t.id !== id) return t;
+      if (!t.recurrence) return { ...t, completed: !t.completed };
+      const completedDates = t.completedDates || [];
+      const newDates = completedDates.includes(dateStr)
+        ? completedDates.filter(d => d !== dateStr)
+        : [...completedDates, dateStr];
+      return { ...t, completedDates: newDates };
+    });
     setTasks(updated); save(updated);
   };
 
@@ -326,11 +573,16 @@ function TaskCalendar() {
 
   const openModal = (day) => { setModalDay(day); setShowModal(true); };
 
+  const handleSaveCategories = (updated) => {
+    setCategories(updated);
+    fbSaveCategories(updated);
+  };
+
   // ── DAY VIEW ──
   const renderDay = () => {
     const d = parseDate(currentDay);
     const isToday = currentDay === todayStr();
-    const dayTasks = tasks.filter(t => t.date === currentDay);
+    const dayTasks = getDayTasks(currentDay);
     const greeting = getGreeting();
     const weekDays = Array.from({length:5}, (_,i) => addDays(getWeekStart(d), i));
     const inWeek = weekDays.some(wd => fmt(wd) === currentDay);
@@ -347,6 +599,7 @@ function TaskCalendar() {
             display:"flex", alignItems:"center", gap:"6px", letterSpacing:"0.02em",
             transition:"transform 0.12s, box-shadow 0.12s"
           }}>📅 See Week</button>
+          <button onClick={() => setShowCatManager(true)} style={{ background:"#fff", border:`1.5px solid #E0E6F0`, color:NAVY, width:"32px", height:"32px", borderRadius:"50%", cursor:"pointer", fontSize:"15px", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 6px rgba(0,0,0,0.08)" }}>⚙️</button>
           <div style={{ display:"flex", alignItems:"center", gap:"4px" }}>
             <button className="nav-btn" onClick={() => setCurrentDay(fmt(addDays(parseDate(currentDay), -1)))} style={{ background:"#fff", border:`1.5px solid #E0E6F0`, color:NAVY, width:"32px", height:"32px", borderRadius:"50%", cursor:"pointer", fontSize:"16px", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 6px rgba(0,0,0,0.08)" }}>‹</button>
             <button onClick={() => setCurrentDay(todayStr())} style={{ background:"none", border:"none", color:NAVY, fontSize:"12px", fontWeight:"700", cursor:"pointer", padding:"0 6px", letterSpacing:"0.05em", opacity: isToday ? 0.4 : 1 }}>TODAY</button>
@@ -382,12 +635,12 @@ function TaskCalendar() {
             </div>
           )}
           {dayTasks.map((task, i) => (
-            <DayTaskCard key={task.id} task={task} index={i} onDone={toggleDone} onDelete={deleteTask}/>
+            <DayTaskCard key={task.id} task={task} index={i} dateStr={currentDay} isCompleted={isCompleted(task,currentDay)} onDone={toggleDone} onDelete={deleteTask} categories={categories}/>
           ))}
         </div>
 
         {/* Add button */}
-        <div style={{ padding:"24px 18px 36px", display:"flex", justifyContent:"flex-end" }}>
+        <div style={{ padding:"8px 18px 0", paddingBottom:"max(20px, env(safe-area-inset-bottom, 20px))", display:"flex", justifyContent:"flex-end" }}>
           <button onClick={() => openModal(currentDay)} style={{
             background:`linear-gradient(135deg, ${NAVY}, ${NAVY2})`, border:"none", borderRadius:"100px",
             color:"#fff", padding:"14px 24px", cursor:"pointer", fontSize:"16px", fontWeight:"700",
@@ -427,7 +680,7 @@ function TaskCalendar() {
             const dateStr = fmt(day);
             const isToday = dateStr === todayStr();
             const isDragTarget = dragOverDay === dateStr;
-            const dayTasks = tasks.filter(t => t.date === dateStr);
+            const dayTasks = getDayTasks(dateStr);
             return (
               <div key={i}
                 onDrop={e => onDrop(e, dateStr)}
@@ -445,8 +698,8 @@ function TaskCalendar() {
                 {/* Tasks */}
                 <div style={{ padding:"6px 5px 8px", display:"flex", flexDirection:"column", gap:"5px", flex:1 }}>
                   {dayTasks.map(task => (
-                    <WeekTaskCard key={task.id} task={task} onDone={toggleDone} onDelete={deleteTask}
-                      onDragStart={onDragStart} onDragEnd={onDragEnd} isDragging={draggedId === task.id}/>
+                    <WeekTaskCard key={task.id} task={task} dateStr={dateStr} isCompleted={isCompleted(task,dateStr)} onDone={toggleDone} onDelete={deleteTask}
+                      onDragStart={onDragStart} onDragEnd={onDragEnd} isDragging={draggedId === task.id} categories={categories}/>
                   ))}
                   {isDragTarget && (
                     <div style={{ border:`2px dashed ${NAVY}55`, borderRadius:"8px", height:"36px", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -530,7 +783,10 @@ function TaskCalendar() {
         {view === "month" && renderMonth()}
       </div>
       {showModal && (
-        <AddModal selectedDay={modalDay} onClose={() => setShowModal(false)} onAdd={addTask} getNextColor={getNextColor}/>
+        <AddModal selectedDay={modalDay} onClose={() => setShowModal(false)} onAdd={addTask} getNextColor={getNextColor} categories={categories}/>
+      )}
+      {showCatManager && (
+        <CategoryManager categories={categories} onClose={() => setShowCatManager(false)} onSave={handleSaveCategories}/>
       )}
 
       {nudgeBanner && (
