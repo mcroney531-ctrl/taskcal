@@ -8,21 +8,21 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   body { background: #F2F5FC; font-family: 'Finlandica', Georgia, serif; min-height: 100vh; padding-top: env(safe-area-inset-top, 32px); }
   @keyframes slideUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes slideInRight { from { opacity:0; transform:translateX(32px); } to { opacity:1; transform:translateX(0); } }
   @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-  @keyframes pop { 0%{transform:scale(0.94)} 60%{transform:scale(1.03)} 100%{transform:scale(1)} }
-  .task-card { transition: transform 0.12s, box-shadow 0.12s; }
-  .task-card:active { transform: translateY(4px) !important; }
+  .task-card { transition: box-shadow 0.12s, transform 0.1s, opacity 0.15s; }
   .pill-btn:active { transform: translateY(2px) scale(0.97); }
   .nav-btn:active { transform: scale(0.92); }
   input { font-family: 'Finlandica', Georgia, serif; }
   button { font-family: 'Finlandica', Georgia, serif; }
   ::-webkit-scrollbar { width: 3px; }
   ::-webkit-scrollbar-thumb { background: #1B3A6B55; border-radius: 2px; }
+  .drag-handle { cursor: grab; user-select: none; touch-action: none; -webkit-user-select: none; }
+  .drag-handle:active { cursor: grabbing; }
 </style>
 </head>
 <body>
@@ -34,176 +34,286 @@ const NAVY2 = "#2A5298";
 const BG = "#F2F5FC";
 const PALETTE = ["#E85D4A","#F4A261","#2A9D8F","#457B9D","#9B5DE5","#F15BB5","#00BBF9","#FFBE0B"];
 const DEFAULT_CATEGORIES = [
-  { id: "build", title: "Build/Project", color: "#457B9D" },
-  { id: "cleaning", title: "Cleaning", color: "#2A9D8F" },
-  { id: "custom", title: "Custom", color: "#9B5DE5" },
-  { id: "finance", title: "Finance", color: "#FFBE0B" },
-  { id: "housework", title: "Housework", color: "#F4A261" },
-  { id: "work", title: "Work", color: "#1B3A6B" },
+  { id:"build", title:"Build/Project", color:"#457B9D" },
+  { id:"cleaning", title:"Cleaning", color:"#2A9D8F" },
+  { id:"custom", title:"Custom", color:"#9B5DE5" },
+  { id:"finance", title:"Finance", color:"#FFBE0B" },
+  { id:"housework", title:"Housework", color:"#F4A261" },
+  { id:"work", title:"Work", color:"#1B3A6B" },
 ];
-
 const CATEGORY_ICON_MAP = {
-  build: ["🔨","⚙️","🏗️","💻","🛠️","🎯"],
-  cleaning: ["🧹","🧽","🫧","🪣","✨","🧴"],
-  custom: ["🌟","💎","🎨","✨","🔑","🎭"],
-  finance: ["💰","💳","📊","🏦","💵","📈"],
-  housework: ["🏠","🛒","🍳","🌿","🪴","🧺"],
-  work: ["💼","📋","📧","🤝","📊","🖥️"],
+  build:["🔨","⚙️","🏗️","💻","🛠️","🎯"],
+  cleaning:["🧹","🧽","🫧","🪣","✨","🧴"],
+  custom:["🌟","💎","🎨","✨","🔑","🎭"],
+  finance:["💰","💳","📊","🏦","💵","📈"],
+  housework:["🏠","🛒","🍳","🌿","🪴","🧺"],
+  work:["💼","📋","📧","🤝","📊","🖥️"],
 };
-
 const CARD_SHADOW = () => `0 6px 0 rgba(0,0,0,0.18), 0 10px 24px rgba(0,0,0,0.10)`;
 const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const DAY_SHORT = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 const fmt = (date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth()+1).padStart(2,'0');
-  const d = String(date.getDate()).padStart(2,'0');
+  const y=date.getFullYear(), m=String(date.getMonth()+1).padStart(2,'0'), d=String(date.getDate()).padStart(2,'0');
   return `${y}-${m}-${d}`;
 };
 const todayStr = () => fmt(new Date());
-
-const parseDate = (str) => {
-  const [y,m,d] = str.split("-").map(Number);
-  return new Date(y, m-1, d);
-};
-
-const addDays = (date, n) => {
-  const d = new Date(date);
-  d.setDate(d.getDate() + n);
-  return d;
-};
-
+const parseDate = (str) => { const [y,m,d]=str.split("-").map(Number); return new Date(y,m-1,d); };
+const addDays = (date,n) => { const d=new Date(date); d.setDate(d.getDate()+n); return d; };
 const getWeekStart = (date) => {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  d.setHours(0,0,0,0);
-  return d;
+  const d=new Date(date), day=d.getDay(), diff=d.getDate()-day+(day===0?-6:1);
+  d.setDate(diff); d.setHours(0,0,0,0); return d;
 };
-
 const getGreeting = () => {
-  const h = new Date().getHours();
-  if (h < 12) return { text: "Good morning", icon: "☀️" };
-  if (h < 17) return { text: "Good afternoon", icon: "🌤️" };
-  return { text: "Good evening", icon: "🌙" };
+  const h=new Date().getHours();
+  if(h<12) return {text:"Good morning",icon:"☀️"};
+  if(h<17) return {text:"Good afternoon",icon:"🌤️"};
+  return {text:"Good evening",icon:"🌙"};
 };
-
 const getAutoIcon = (title, categoryId) => {
-  if (categoryId && CATEGORY_ICON_MAP[categoryId]) {
-    const icons = CATEGORY_ICON_MAP[categoryId];
-    return icons[Math.floor(Math.abs((title || "").charCodeAt(0) || 0)) % icons.length];
+  if(categoryId && CATEGORY_ICON_MAP[categoryId]){
+    const icons=CATEGORY_ICON_MAP[categoryId];
+    return icons[Math.floor(Math.abs((title||"").charCodeAt(0)||0))%icons.length];
   }
-  const t = (title || "").toLowerCase();
-  if (/meet|call|zoom|teams|standup|sync|chat/.test(t)) return "🤝";
-  if (/email|mail|send|message|text/.test(t)) return "📧";
-  if (/lunch|dinner|breakfast|eat|food|coffee|restaurant/.test(t)) return "🍽️";
-  if (/workout|gym|run|exercise|walk|yoga|training/.test(t)) return "💪";
-  if (/doctor|dentist|medical|health|appointment|therapy/.test(t)) return "🏥";
-  if (/pay|bill|invoice|budget|money|bank|finance/.test(t)) return "💰";
-  if (/read|book|study|learn|course|research/.test(t)) return "📚";
-  if (/write|draft|blog|post|article|report|essay/.test(t)) return "✍️";
-  if (/review|check|feedback|edit|proofread/.test(t)) return "🔍";
-  if (/buy|shop|order|purchase|grocery/.test(t)) return "🛒";
-  if (/travel|flight|trip|hotel|pack/.test(t)) return "✈️";
-  if (/birthday|party|celebrate|event|wedding/.test(t)) return "🎉";
-  if (/fix|repair|bug|issue|problem|debug/.test(t)) return "🔧";
-  if (/design|create|build|make|develop/.test(t)) return "🎨";
-  if (/present|pitch|demo|show|slide/.test(t)) return "📊";
-  if (/plan|strategy|roadmap|outline/.test(t)) return "🗺️";
-  if (/clean|organize|sort|tidy/.test(t)) return "🧹";
-  if (/urgent|asap|priority|important|deadline/.test(t)) return "🔥";
-  if (/idea|brainstorm|think|concept/.test(t)) return "💡";
-  if (/follow|remind|check.in/.test(t)) return "🔔";
-  if (/interview|hire|recruit/.test(t)) return "👔";
-  if (/video|record|edit|film/.test(t)) return "🎬";
-  if (/music|practice|rehearse|play/.test(t)) return "🎵";
-  if (/ai|prompt|claude|gpt|model/.test(t)) return "🤖";
-  if (/workshop|train|facilitat/.test(t)) return "🏫";
-  const defaults = ["📌","🎯","⚡","🌟","✅","🚀","💎","🔑"];
-  return defaults[Math.floor(Math.abs((title || "x").charCodeAt(0) + (title || "").length)) % defaults.length];
+  const t=(title||"").toLowerCase();
+  if(/meet|call|zoom|teams|standup|sync|chat/.test(t)) return "🤝";
+  if(/email|mail|send|message|text/.test(t)) return "📧";
+  if(/lunch|dinner|breakfast|eat|food|coffee|restaurant/.test(t)) return "🍽️";
+  if(/workout|gym|run|exercise|walk|yoga|training/.test(t)) return "💪";
+  if(/doctor|dentist|medical|health|appointment|therapy/.test(t)) return "🏥";
+  if(/pay|bill|invoice|budget|money|bank|finance/.test(t)) return "💰";
+  if(/read|book|study|learn|course|research/.test(t)) return "📚";
+  if(/write|draft|blog|post|article|report|essay/.test(t)) return "✍️";
+  if(/review|check|feedback|edit|proofread/.test(t)) return "🔍";
+  if(/buy|shop|order|purchase|grocery/.test(t)) return "🛒";
+  if(/travel|flight|trip|hotel|pack/.test(t)) return "✈️";
+  if(/birthday|party|celebrate|event|wedding/.test(t)) return "🎉";
+  if(/fix|repair|bug|issue|problem|debug/.test(t)) return "🔧";
+  if(/design|create|build|make|develop/.test(t)) return "🎨";
+  if(/present|pitch|demo|show|slide/.test(t)) return "📊";
+  if(/plan|strategy|roadmap|outline/.test(t)) return "🗺️";
+  if(/clean|organize|sort|tidy/.test(t)) return "🧹";
+  if(/urgent|asap|priority|important|deadline/.test(t)) return "🔥";
+  if(/idea|brainstorm|think|concept/.test(t)) return "💡";
+  if(/follow|remind|check.in/.test(t)) return "🔔";
+  if(/interview|hire|recruit/.test(t)) return "👔";
+  if(/video|record|edit|film/.test(t)) return "🎬";
+  if(/music|practice|rehearse|play/.test(t)) return "🎵";
+  if(/ai|prompt|claude|gpt|model/.test(t)) return "🤖";
+  const defaults=["📌","🎯","⚡","🌟","✅","🚀","💎","🔑"];
+  return defaults[Math.floor(Math.abs((title||"x").charCodeAt(0)+(title||"").length))%defaults.length];
 };
 
-// ── localStorage persistence ─────────────────────────────────────────
-const fbSave = (tasks) => {
-  try { localStorage.setItem('taskcal-tasks', JSON.stringify(tasks || [])); } catch(e) {}
-};
-const fbLoad = async () => {
-  try { const raw = localStorage.getItem('taskcal-tasks'); if (raw) return JSON.parse(raw); } catch(e) {}
-  return null;
-};
-const fbSaveCategories = (cats) => {
-  try { localStorage.setItem('taskcal-categories', JSON.stringify(cats)); } catch(e) {}
-};
-const fbLoadCategories = async () => {
-  try { const raw = localStorage.getItem('taskcal-categories'); if (raw) return JSON.parse(raw); } catch(e) {}
-  return null;
-};
-const fbSaveLists = (lists) => {
-  try { localStorage.setItem('taskcal-lists', JSON.stringify(lists || [])); } catch(e) {}
-};
-const fbLoadLists = async () => {
-  try { const raw = localStorage.getItem('taskcal-lists'); if (raw) return JSON.parse(raw); } catch(e) {}
-  return null;
-};
+// ── localStorage ─────────────────────────────────────────────────────
+const fbSave=(t)=>{try{localStorage.setItem('taskcal-tasks',JSON.stringify(t||[]));}catch(e){}};
+const fbLoad=async()=>{try{const r=localStorage.getItem('taskcal-tasks');if(r)return JSON.parse(r);}catch(e){}return null;};
+const fbSaveCats=(c)=>{try{localStorage.setItem('taskcal-categories',JSON.stringify(c));}catch(e){}};
+const fbLoadCats=async()=>{try{const r=localStorage.getItem('taskcal-categories');if(r)return JSON.parse(r);}catch(e){}return null;};
+const fbSaveLists=(l)=>{try{localStorage.setItem('taskcal-lists',JSON.stringify(l||[]));}catch(e){}};
+const fbLoadLists=async()=>{try{const r=localStorage.getItem('taskcal-lists');if(r)return JSON.parse(r);}catch(e){}return null;};
+const fbSaveDayOrder=(o)=>{try{localStorage.setItem('taskcal-dayorder',JSON.stringify(o));}catch(e){}};
+const fbLoadDayOrder=async()=>{try{const r=localStorage.getItem('taskcal-dayorder');if(r)return JSON.parse(r);}catch(e){}return{};};
+const fbSaveSubtasks=(m)=>{try{localStorage.setItem('taskcal-subtasks',JSON.stringify(m));}catch(e){}};
+const fbLoadSubtasks=async()=>{try{const r=localStorage.getItem('taskcal-subtasks');if(r)return JSON.parse(r);}catch(e){}return{};};
 
-// ─── TASK CARD (Day View) ──────────────────────────────────────────────
-function DayTaskCard({ task, onDone, onDelete, onEdit, index, dateStr, isCompleted, categories }) {
+// ─── ROUTINE DETAIL SHEET ────────────────────────────────────────────
+function RoutineSheet({ task, subtasks, onClose, onSaveSubtasks }) {
+  const [items, setItems] = React.useState(subtasks || []);
+  const [newText, setNewText] = React.useState("");
+  const doneCount = items.filter(i=>i.checked).length;
+  const pct = items.length ? Math.round((doneCount/items.length)*100) : 0;
+
+  const addItem = () => {
+    if(!newText.trim()) return;
+    const updated=[...items,{id:Date.now().toString(),text:newText.trim(),checked:false}];
+    setItems(updated); onSaveSubtasks(task.id,updated); setNewText("");
+  };
+  const toggle = (id) => {
+    const updated=items.map(it=>it.id===id?{...it,checked:!it.checked}:it);
+    setItems(updated); onSaveSubtasks(task.id,updated);
+  };
+  const deleteItem = (id) => {
+    const updated=items.filter(it=>it.id!==id);
+    setItems(updated); onSaveSubtasks(task.id,updated);
+  };
+
   return (
-    <div className="task-card" style={{
-      background: `linear-gradient(135deg, ${task.color}EE, ${task.color}CC)`,
-      borderRadius: "16px",
-      padding: "16px 18px 14px",
-      boxShadow: CARD_SHADOW(task.color),
-      opacity: isCompleted ? 0.45 : 1,
-      animation: `slideUp 0.3s ease ${index * 0.06}s both`,
-      position: "relative",
-      overflow: "hidden",
-      border: task.recurrence === 'daily' ? "3px solid rgba(0,0,0,0.35)" : (task.categoryId ? "3px solid rgba(0,0,0,0.2)" : "3px solid transparent"),
-      paddingTop: (task.recurrence === 'daily' || task.categoryId) ? "24px" : "16px",
-    }}>
-      <div style={{ position:"absolute", top:0, left:0, right:0, height:"50%", background:"linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%)", borderRadius:"16px 16px 0 0", pointerEvents:"none" }} />
-      {(task.recurrence === 'daily' || task.categoryId) && (() => {
-        const cat = task.categoryId ? (categories||[]).find(c => c.id === task.categoryId) : null;
-        const catTitle = cat ? cat.title.toUpperCase() : null;
-        let label = "";
-        if (task.recurrence === 'daily' && catTitle) label = `DAILY: ${catTitle}`;
-        else if (task.recurrence === 'daily') label = "DAILY";
-        else if (catTitle) label = catTitle;
-        return label ? <div style={{ position:"absolute", top:"8px", left:"10px", fontSize:"8px", fontWeight:"800", color:"rgba(0,0,0,0.45)", letterSpacing:"0.15em" }}>{label}</div> : null;
-      })()}
-
-      {/* Edit button — top right */}
-      <button onClick={() => onEdit(task)} style={{
-        position:"absolute", top:"8px", right:"10px",
-        background:"rgba(255,255,255,0.2)", border:"none", borderRadius:"8px",
-        color:"rgba(255,255,255,0.85)", cursor:"pointer", fontSize:"12px",
-        padding:"3px 7px", fontFamily:"inherit", lineHeight:1, backdropFilter:"blur(4px)"
-      }}>✏️</button>
-
-      {task.time && (
-        <div style={{ fontSize:"12px", fontWeight:"700", color:"rgba(0,0,0,0.55)", letterSpacing:"0.06em", marginBottom:"4px" }}>
-          🕐 {task.time}
+    <div style={{position:"fixed",inset:0,zIndex:400,background:BG,display:"flex",flexDirection:"column",animation:"slideInRight 0.22s ease"}}>
+      <div style={{background:`linear-gradient(135deg,${task.color}EE,${task.color}BB)`,padding:"20px 20px 22px",paddingTop:"max(20px,env(safe-area-inset-top,20px))",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:0,left:0,right:0,height:"55%",background:"linear-gradient(180deg,rgba(255,255,255,0.18) 0%,transparent 100%)",pointerEvents:"none"}}/>
+        <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+          <button onClick={onClose} style={{background:"rgba(0,0,0,0.15)",border:"none",borderRadius:"50%",color:"#fff",width:"34px",height:"34px",cursor:"pointer",fontSize:"18px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,backdropFilter:"blur(4px)"}}>‹</button>
+          <div style={{fontSize:"26px",lineHeight:1,filter:"drop-shadow(0 2px 4px rgba(0,0,0,0.15))",flexShrink:0}}>{task.icon||"📌"}</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:"8px",fontWeight:"800",color:"rgba(255,255,255,0.6)",letterSpacing:"0.18em",marginBottom:"3px"}}>🔁 ROUTINE</div>
+            <div style={{fontSize:"20px",fontWeight:"700",color:"#fff",lineHeight:1.2,textShadow:"0 1px 4px rgba(0,0,0,0.2)"}}>{task.title}</div>
+          </div>
         </div>
-      )}
-      <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
-        <div style={{ fontSize:"26px", lineHeight:1, flexShrink:0, filter:"drop-shadow(0 2px 3px rgba(0,0,0,0.15))" }}>{task.icon || "📌"}</div>
-        <div style={{ fontSize:"17px", fontWeight:"600", color:"#fff", lineHeight:1.35, textDecoration: isCompleted ? "line-through" : "none", textShadow:"0 1px 3px rgba(0,0,0,0.2)", wordBreak:"break-word", flex:1, paddingRight:"28px" }}>
-          {task.recurrence && <span style={{fontSize:"11px", marginRight:"5px", opacity:0.75}}>🔁</span>}
-          {task.title}
+        {items.length>0&&(
+          <div style={{marginTop:"16px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:"5px"}}>
+              <span style={{fontSize:"11px",color:"rgba(255,255,255,0.7)",fontWeight:"600"}}>{doneCount}/{items.length} steps done</span>
+              <span style={{fontSize:"11px",color:"rgba(255,255,255,0.9)",fontWeight:"700"}}>{pct}%</span>
+            </div>
+            <div style={{background:"rgba(0,0,0,0.18)",borderRadius:"8px",height:"6px",overflow:"hidden"}}>
+              <div style={{height:"100%",width:`${pct}%`,background:"rgba(255,255,255,0.85)",borderRadius:"8px",transition:"width 0.3s ease"}}/>
+            </div>
+          </div>
+        )}
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"20px 18px 24px"}}>
+        {items.length===0&&(
+          <div style={{textAlign:"center",padding:"48px 20px",animation:"fadeIn 0.3s ease"}}>
+            <div style={{fontSize:"40px",marginBottom:"10px"}}>🪜</div>
+            <div style={{fontSize:"15px",color:"#AAB8D0",fontWeight:"500"}}>No steps yet</div>
+            <div style={{fontSize:"12px",color:"#C5D0E0",marginTop:"4px"}}>Add the steps that make up this routine</div>
+          </div>
+        )}
+        <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+          {items.map((item)=>(
+            <div key={item.id} style={{display:"flex",alignItems:"center",gap:"12px",background:"#fff",borderRadius:"14px",padding:"13px 14px",boxShadow:"0 2px 8px rgba(27,58,107,0.07)",border:"1.5px solid #E8EEF8"}}>
+              <button onClick={()=>toggle(item.id)} style={{
+                width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,cursor:"pointer",
+                background:item.checked?`linear-gradient(135deg,${task.color}DD,${task.color}AA)`:"#fff",
+                border:item.checked?"none":"2px solid #C8D4E8",
+                color:"#fff",fontSize:"13px",display:"flex",alignItems:"center",justifyContent:"center",
+                boxShadow:item.checked?`0 2px 8px ${task.color}55`:"none",transition:"all 0.18s"
+              }}>{item.checked?"✓":""}</button>
+              <span style={{flex:1,fontSize:"15px",color:item.checked?"#B0BCCE":"#2A3A5A",fontWeight:"500",textDecoration:item.checked?"line-through":"none",lineHeight:1.35,wordBreak:"break-word"}}>{item.text}</span>
+              <button onClick={()=>deleteItem(item.id)} style={{background:"none",border:"none",color:"#D8E0EE",cursor:"pointer",fontSize:"16px",padding:"4px 4px 4px 8px",flexShrink:0}}>✕</button>
+            </div>
+          ))}
         </div>
       </div>
-      <div style={{ display:"flex", gap:"6px", marginTop:"10px" }}>
-        <button onClick={() => onDone(task.id, dateStr)} style={{
-          background:"rgba(255,255,255,0.3)", border:"none", borderRadius:"20px", color:"#fff",
-          cursor:"pointer", fontSize:"11px", padding:"4px 12px", fontFamily:"inherit", fontWeight:"600", letterSpacing:"0.05em",
-          backdropFilter:"blur(4px)", boxShadow:"0 2px 4px rgba(0,0,0,0.1)"
-        }}>{isCompleted ? "↩ Undo" : "✓ Done"}</button>
-        <button onClick={() => onDelete(task.id)} style={{
-          background:"rgba(0,0,0,0.15)", border:"none", borderRadius:"20px", color:"rgba(255,255,255,0.85)",
-          cursor:"pointer", fontSize:"11px", padding:"4px 12px", fontFamily:"inherit", fontWeight:"600",
+      <div style={{padding:"12px 18px",paddingBottom:"max(20px,env(safe-area-inset-bottom,20px))",background:"rgba(242,245,252,0.97)",borderTop:"1.5px solid #E8EEF8",backdropFilter:"blur(8px)"}}>
+        <div style={{display:"flex",gap:"10px"}}>
+          <input value={newText} onChange={e=>setNewText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addItem()} placeholder="Add a step..."
+            style={{flex:1,background:"#fff",border:"2px solid #E0E8FF",borderRadius:"14px",padding:"12px 16px",color:"#1A1A1A",fontSize:"15px",fontFamily:"inherit",outline:"none",boxShadow:"0 2px 8px rgba(27,58,107,0.06)"}}/>
+          <button onClick={addItem} style={{background:`linear-gradient(135deg,${task.color}EE,${task.color}BB)`,border:"none",borderRadius:"14px",color:"#fff",padding:"12px 20px",cursor:"pointer",fontSize:"14px",fontWeight:"700",fontFamily:"inherit",boxShadow:`0 4px 0 rgba(0,0,0,0.15),0 6px 14px ${task.color}44`}}>＋</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ROUTINES PANEL ──────────────────────────────────────────────────
+function RoutinesPanel({ dailyTasks, subtasksMap, onClose, onOpenRoutine }) {
+  return (
+    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+      style={{position:"fixed",inset:0,background:"rgba(10,20,50,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:250,backdropFilter:"blur(6px)",animation:"fadeIn 0.2s ease"}}>
+      <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"24px 22px 40px",width:"100%",maxWidth:"480px",boxShadow:"0 -20px 60px rgba(27,58,107,0.25)",animation:"slideUp 0.25s ease",maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+        <div style={{width:"40px",height:"4px",background:"#E0E6F0",borderRadius:"2px",margin:"0 auto 20px"}}/>
+        <div style={{fontSize:"15px",color:NAVY,fontWeight:"700",marginBottom:"3px"}}>🔁 Routines</div>
+        <div style={{fontSize:"12px",color:"#AAB8D0",marginBottom:"18px"}}>Daily tasks — tap to manage steps</div>
+        <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:"10px"}}>
+          {dailyTasks.length===0&&(
+            <div style={{textAlign:"center",padding:"40px 20px"}}>
+              <div style={{fontSize:"36px",marginBottom:"10px"}}>🔁</div>
+              <div style={{fontSize:"14px",color:"#AAB8D0",fontWeight:"500"}}>No daily tasks yet</div>
+              <div style={{fontSize:"12px",color:"#C5D0E0",marginTop:"4px"}}>Mark a task as Daily to see it here</div>
+            </div>
+          )}
+          {dailyTasks.map(task=>{
+            const subs=subtasksMap[task.id]||[];
+            const done=subs.filter(s=>s.checked).length;
+            return(
+              <button key={task.id} onClick={()=>{onClose();onOpenRoutine(task);}}
+                style={{display:"flex",alignItems:"center",gap:"14px",background:"#F4F7FF",border:"2px solid #E0E8FF",borderRadius:"16px",padding:"14px 16px",cursor:"pointer",textAlign:"left",fontFamily:"inherit",transition:"all 0.12s"}}>
+                <div style={{width:"44px",height:"44px",borderRadius:"14px",background:`linear-gradient(135deg,${task.color}EE,${task.color}AA)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"22px",flexShrink:0,boxShadow:`0 3px 8px ${task.color}44`}}>
+                  {task.icon||"📌"}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:"14px",color:NAVY,fontWeight:"700",marginBottom:"3px"}}>{task.title}</div>
+                  <div style={{fontSize:"11px",color:"#AAB8D0"}}>{subs.length===0?"No steps — tap to add":`${done}/${subs.length} steps`}</div>
+                </div>
+                <div style={{fontSize:"18px",color:"#C8D4E8"}}>›</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── DAY TASK CARD ───────────────────────────────────────────────────
+function DayTaskCard({ task, onDone, onDelete, onEdit, onOpenRoutine, index, dateStr, isCompleted, categories, isDragging, dragOver, onPointerDown, subtasks }) {
+  const isDaily = task.recurrence === 'daily';
+  const subCount = subtasks ? subtasks.length : 0;
+  const subDone = subtasks ? subtasks.filter(s=>s.checked).length : 0;
+
+  const handleCardClick = (e) => {
+    if(isDaily && e.target.closest('button')===null && e.target.closest('[data-draghandle]')===null) {
+      onOpenRoutine(task);
+    }
+  };
+
+  return (
+    <div onClick={handleCardClick} className="task-card" style={{
+      background: isDragging?`linear-gradient(135deg,${task.color}99,${task.color}77)`:`linear-gradient(135deg,${task.color}EE,${task.color}CC)`,
+      borderRadius:"16px", padding:"16px 18px 14px",
+      boxShadow: isDragging?`0 18px 48px rgba(0,0,0,0.32)`:(dragOver?`0 0 0 3px ${NAVY}77, ${CARD_SHADOW()}`:CARD_SHADOW()),
+      opacity: isDragging?0.45:(isCompleted?0.45:1),
+      position:"relative", overflow:"hidden",
+      border: isDaily?"3px solid rgba(0,0,0,0.35)":(task.categoryId?"3px solid rgba(0,0,0,0.2)":"3px solid transparent"),
+      paddingTop:(isDaily||task.categoryId)?"24px":"16px",
+      transform: isDragging?"scale(1.03) rotate(1.5deg)":(dragOver?"scale(1.015)":"none"),
+      cursor: isDaily?"pointer":"default",
+      zIndex: isDragging?50:1,
+    }}>
+      <div style={{position:"absolute",top:0,left:0,right:0,height:"50%",background:"linear-gradient(180deg,rgba(255,255,255,0.2) 0%,transparent 100%)",borderRadius:"16px 16px 0 0",pointerEvents:"none"}}/>
+      {(isDaily||task.categoryId)&&(()=>{
+        const cat=task.categoryId?(categories||[]).find(c=>c.id===task.categoryId):null;
+        const catTitle=cat?cat.title.toUpperCase():null;
+        let label="";
+        if(isDaily&&catTitle) label=`DAILY: ${catTitle}`;
+        else if(isDaily) label="DAILY";
+        else if(catTitle) label=catTitle;
+        return label?<div style={{position:"absolute",top:"8px",left:"10px",fontSize:"8px",fontWeight:"800",color:"rgba(0,0,0,0.45)",letterSpacing:"0.15em"}}>{label}</div>:null;
+      })()}
+      {/* drag handle */}
+      <div data-draghandle="1" onPointerDown={onPointerDown}
+        className="drag-handle"
+        style={{position:"absolute",top:"8px",right:"44px",padding:"4px 5px",color:"rgba(255,255,255,0.45)",fontSize:"14px",lineHeight:1,letterSpacing:"0.05em"}}
+        onClick={e=>e.stopPropagation()}>
+        ⠿
+      </div>
+      {/* edit button */}
+      <button onClick={e=>{e.stopPropagation();onEdit(task);}} style={{
+        position:"absolute",top:"8px",right:"8px",
+        background:"rgba(255,255,255,0.2)",border:"none",borderRadius:"8px",
+        color:"rgba(255,255,255,0.85)",cursor:"pointer",fontSize:"12px",
+        padding:"3px 7px",fontFamily:"inherit",lineHeight:1,backdropFilter:"blur(4px)"
+      }}>✏️</button>
+      {task.time&&<div style={{fontSize:"12px",fontWeight:"700",color:"rgba(0,0,0,0.55)",letterSpacing:"0.06em",marginBottom:"4px"}}>🕐 {task.time}</div>}
+      <div style={{display:"flex",alignItems:"flex-start",gap:"10px"}}>
+        <div style={{fontSize:"26px",lineHeight:1,flexShrink:0,filter:"drop-shadow(0 2px 3px rgba(0,0,0,0.15))"}}>{task.icon||"📌"}</div>
+        <div style={{flex:1,paddingRight:"28px"}}>
+          <div style={{fontSize:"17px",fontWeight:"600",color:"#fff",lineHeight:1.35,textDecoration:isCompleted?"line-through":"none",textShadow:"0 1px 3px rgba(0,0,0,0.2)",wordBreak:"break-word"}}>
+            {task.recurrence&&<span style={{fontSize:"11px",marginRight:"5px",opacity:0.75}}>🔁</span>}
+            {task.title}
+          </div>
+          {isDaily&&subCount>0&&(
+            <div style={{marginTop:"5px",display:"inline-flex",alignItems:"center",gap:"5px",background:"rgba(0,0,0,0.15)",borderRadius:"20px",padding:"2px 8px 2px 6px"}}>
+              <span style={{fontSize:"10px"}}>🪜</span>
+              <span style={{fontSize:"10px",color:"rgba(255,255,255,0.9)",fontWeight:"600"}}>{subDone}/{subCount}</span>
+            </div>
+          )}
+          {isDaily&&subCount===0&&(
+            <div style={{marginTop:"4px",fontSize:"10px",color:"rgba(255,255,255,0.4)",fontStyle:"italic"}}>tap to manage steps</div>
+          )}
+        </div>
+      </div>
+      <div style={{display:"flex",gap:"6px",marginTop:"10px"}} onClick={e=>e.stopPropagation()}>
+        <button onClick={()=>onDone(task.id,dateStr)} style={{
+          background:"rgba(255,255,255,0.3)",border:"none",borderRadius:"20px",color:"#fff",
+          cursor:"pointer",fontSize:"11px",padding:"4px 12px",fontFamily:"inherit",fontWeight:"600",
+          backdropFilter:"blur(4px)",boxShadow:"0 2px 4px rgba(0,0,0,0.1)"
+        }}>{isCompleted?"↩ Undo":"✓ Done"}</button>
+        <button onClick={()=>onDelete(task.id)} style={{
+          background:"rgba(0,0,0,0.15)",border:"none",borderRadius:"20px",color:"rgba(255,255,255,0.85)",
+          cursor:"pointer",fontSize:"11px",padding:"4px 12px",fontFamily:"inherit",fontWeight:"600",
           boxShadow:"0 2px 4px rgba(0,0,0,0.1)"
         }}>✕ Del</button>
       </div>
@@ -211,234 +321,181 @@ function DayTaskCard({ task, onDone, onDelete, onEdit, index, dateStr, isComplet
   );
 }
 
-// ─── WEEK TASK CARD ────────────────────────────────────────────────────
+// ─── WEEK TASK CARD ──────────────────────────────────────────────────
 function WeekTaskCard({ task, onDone, onDelete, onDragStart, onDragEnd, isDragging, dateStr, isCompleted, categories }) {
   return (
-    <div draggable onDragStart={e => onDragStart(e, task.id)} onDragEnd={onDragEnd}
+    <div draggable onDragStart={e=>onDragStart(e,task.id)} onDragEnd={onDragEnd}
       style={{
-        background: `linear-gradient(145deg, ${task.color}F0, ${task.color}C0)`,
-        borderRadius: "10px", padding: "8px 9px",
-        boxShadow: isDragging ? `0 8px 20px rgba(0,0,0,0.25)` : `0 4px 0 rgba(0,0,0,0.15), 0 6px 12px rgba(0,0,0,0.08)`,
-        opacity: isCompleted ? 0.4 : 1, cursor: "grab", position: "relative", overflow: "hidden",
-        transform: isDragging ? "rotate(2deg) scale(1.02)" : "none",
-        transition: "box-shadow 0.15s, opacity 0.2s",
+        background:`linear-gradient(145deg,${task.color}F0,${task.color}C0)`,
+        borderRadius:"10px",padding:"8px 9px",
+        boxShadow:isDragging?`0 8px 20px rgba(0,0,0,0.25)`:`0 4px 0 rgba(0,0,0,0.15),0 6px 12px rgba(0,0,0,0.08)`,
+        opacity:isCompleted?0.4:1,cursor:"grab",position:"relative",overflow:"hidden",
+        transform:isDragging?"rotate(2deg) scale(1.02)":"none",transition:"box-shadow 0.15s,opacity 0.2s",
       }}>
-      <div style={{ position:"absolute", top:0, left:0, right:0, height:"40%", background:"linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 100%)", borderRadius:"10px 10px 0 0", pointerEvents:"none" }}/>
-      {(() => {
-        const cat = task.categoryId ? (categories||[]).find(c => c.id === task.categoryId) : null;
-        const catTitle = cat ? cat.title.toUpperCase() : null;
-        let label = "";
-        if (task.recurrence === 'daily' && catTitle) label = `DAILY: ${catTitle}`;
-        else if (task.recurrence === 'daily') label = "DAILY";
-        else if (catTitle) label = catTitle;
-        return label ? <div style={{ fontSize:"7px", fontWeight:"800", color:"rgba(0,0,0,0.4)", letterSpacing:"0.12em", marginBottom:"2px" }}>{label}</div> : null;
+      <div style={{position:"absolute",top:0,left:0,right:0,height:"40%",background:"linear-gradient(180deg,rgba(255,255,255,0.18) 0%,transparent 100%)",borderRadius:"10px 10px 0 0",pointerEvents:"none"}}/>
+      {(()=>{
+        const cat=task.categoryId?(categories||[]).find(c=>c.id===task.categoryId):null;
+        const catTitle=cat?cat.title.toUpperCase():null;
+        let label="";
+        if(task.recurrence==='daily'&&catTitle) label=`DAILY: ${catTitle}`;
+        else if(task.recurrence==='daily') label="DAILY";
+        else if(catTitle) label=catTitle;
+        return label?<div style={{fontSize:"7px",fontWeight:"800",color:"rgba(0,0,0,0.4)",letterSpacing:"0.12em",marginBottom:"2px"}}>{label}</div>:null;
       })()}
-      {task.time && <div style={{ fontSize:"8px", fontWeight:"700", color:"rgba(0,0,0,0.5)", marginBottom:"2px", letterSpacing:"0.05em" }}>{task.time}</div>}
-      <div style={{ display:"flex", alignItems:"flex-start", gap:"5px" }}>
-        <span style={{ fontSize:"13px", lineHeight:1.2, flexShrink:0 }}>{task.icon || "📌"}</span>
-        <div style={{ fontSize:"10px", color:"#fff", fontWeight:"600", lineHeight:1.3, textDecoration: isCompleted ? "line-through" : "none", textShadow:"0 1px 2px rgba(0,0,0,0.2)", wordBreak:"break-word" }}>
-          {task.recurrence && <span style={{fontSize:"7px", marginRight:"2px", opacity:0.75}}>🔁</span>}{task.title}
+      {task.time&&<div style={{fontSize:"8px",fontWeight:"700",color:"rgba(0,0,0,0.5)",marginBottom:"2px"}}>{task.time}</div>}
+      <div style={{display:"flex",alignItems:"flex-start",gap:"5px"}}>
+        <span style={{fontSize:"13px",lineHeight:1.2,flexShrink:0}}>{task.icon||"📌"}</span>
+        <div style={{fontSize:"10px",color:"#fff",fontWeight:"600",lineHeight:1.3,textDecoration:isCompleted?"line-through":"none",wordBreak:"break-word"}}>
+          {task.recurrence&&<span style={{fontSize:"7px",marginRight:"2px",opacity:0.75}}>🔁</span>}{task.title}
         </div>
       </div>
-      <div style={{ display:"flex", gap:"3px", marginTop:"5px" }}>
-        <button onClick={() => onDone(task.id, dateStr)} style={{ background:"rgba(255,255,255,0.28)", border:"none", borderRadius:"10px", color:"#fff", cursor:"pointer", fontSize:"7px", padding:"2px 6px", fontFamily:"inherit", fontWeight:"600" }}>{isCompleted ? "↩" : "✓"}</button>
-        <button onClick={() => onDelete(task.id)} style={{ background:"rgba(0,0,0,0.12)", border:"none", borderRadius:"10px", color:"rgba(255,255,255,0.85)", cursor:"pointer", fontSize:"7px", padding:"2px 6px", fontFamily:"inherit", fontWeight:"600" }}>✕</button>
+      <div style={{display:"flex",gap:"3px",marginTop:"5px"}}>
+        <button onClick={()=>onDone(task.id,dateStr)} style={{background:"rgba(255,255,255,0.28)",border:"none",borderRadius:"10px",color:"#fff",cursor:"pointer",fontSize:"7px",padding:"2px 6px",fontFamily:"inherit",fontWeight:"600"}}>{isCompleted?"↩":"✓"}</button>
+        <button onClick={()=>onDelete(task.id)} style={{background:"rgba(0,0,0,0.12)",border:"none",borderRadius:"10px",color:"rgba(255,255,255,0.85)",cursor:"pointer",fontSize:"7px",padding:"2px 6px",fontFamily:"inherit",fontWeight:"600"}}>✕</button>
       </div>
     </div>
   );
 }
 
-// ─── ADD / EDIT TASK MODAL ─────────────────────────────────────────────
+// ─── ADD/EDIT TASK MODAL ─────────────────────────────────────────────
 function TaskModal({ selectedDay, onClose, onSave, getNextColor, categories, editTask }) {
-  const isEdit = !!editTask;
-  const [title, setTitle] = React.useState(isEdit ? editTask.title : "");
-  const [time, setTime] = React.useState(isEdit ? (editTask.time || "") : "");
-  const [color, setColor] = React.useState(isEdit ? editTask.color : getNextColor());
-  const [hexOpen, setHexOpen] = React.useState(false);
-  const [hexInput, setHexInput] = React.useState("");
-  const [nudgeMins, setNudgeMins] = React.useState("");
-  const [recType, setRecType] = React.useState(isEdit
-    ? (editTask.recurrence === 'daily' ? 'daily' : Array.isArray(editTask.recurrence) ? 'custom' : null)
-    : null);
-  const [selectedCatId, setSelectedCatId] = React.useState(isEdit ? (editTask.categoryId || null) : null);
-  const [customIcon, setCustomIcon] = React.useState(isEdit ? (editTask.icon || "") : "");
-  const [iconPickerOpen, setIconPickerOpen] = React.useState(false);
-  const [customDays, setCustomDays] = React.useState(isEdit && Array.isArray(editTask.recurrence) ? editTask.recurrence : []);
-  // Track if icon was manually set (either from edit or user change)
-  const [iconLocked, setIconLocked] = React.useState(isEdit);
-  const DAY_LABELS_REC = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+  const isEdit=!!editTask;
+  const [title,setTitle]=React.useState(isEdit?editTask.title:"");
+  const [time,setTime]=React.useState(isEdit?(editTask.time||""):"");
+  const [color,setColor]=React.useState(isEdit?editTask.color:getNextColor());
+  const [hexOpen,setHexOpen]=React.useState(false);
+  const [hexInput,setHexInput]=React.useState("");
+  const [nudgeMins,setNudgeMins]=React.useState("");
+  const [recType,setRecType]=React.useState(isEdit?(editTask.recurrence==='daily'?'daily':Array.isArray(editTask.recurrence)?'custom':null):null);
+  const [selectedCatId,setSelectedCatId]=React.useState(isEdit?(editTask.categoryId||null):null);
+  const [customIcon,setCustomIcon]=React.useState(isEdit?(editTask.icon||""):"");
+  const [iconPickerOpen,setIconPickerOpen]=React.useState(false);
+  const [iconLocked,setIconLocked]=React.useState(isEdit);
+  const [customDays,setCustomDays]=React.useState(isEdit&&Array.isArray(editTask.recurrence)?editTask.recurrence:[]);
 
-  const toggleCustomDay = (d) => setCustomDays(prev => prev.includes(d) ? prev.filter(x=>x!==d) : [...prev, d]);
-
-  const handleIconChange = (val) => {
-    setCustomIcon(val);
-    setIconLocked(true);
+  const toggleCustomDay=(d)=>setCustomDays(prev=>prev.includes(d)?prev.filter(x=>x!==d):[...prev,d]);
+  const handleIconChange=(val)=>{setCustomIcon(val);setIconLocked(true);};
+  const resetIconToAuto=()=>{setCustomIcon("");setIconLocked(false);};
+  const resolvedIcon=()=>{
+    if(iconLocked&&customIcon.trim()) return customIcon.trim();
+    if(isEdit&&iconLocked) return editTask.icon;
+    return getAutoIcon(title.trim(),selectedCatId);
   };
-
-  const resetIconToAuto = () => {
-    setCustomIcon("");
-    setIconLocked(false);
-  };
-
-  const resolvedIcon = () => {
-    if (iconLocked && customIcon.trim()) return customIcon.trim();
-    if (isEdit && iconLocked) return editTask.icon; // title changed but icon stays
-    return getAutoIcon(title.trim(), selectedCatId);
-  };
-
-  const submit = () => {
-    if (!title.trim()) return;
-    const nudgeAt = nudgeMins ? Date.now() + parseInt(nudgeMins) * 60000 : null;
-    let recurrence = null;
-    if (recType === 'daily') recurrence = 'daily';
-    else if (recType === 'custom' && customDays.length > 0) recurrence = customDays;
-    const icon = resolvedIcon();
-    if (isEdit) {
-      onSave({ ...editTask, title: title.trim(), time, color, recurrence, icon, categoryId: selectedCatId });
+  const submit=()=>{
+    if(!title.trim()) return;
+    let recurrence=null;
+    if(recType==='daily') recurrence='daily';
+    else if(recType==='custom'&&customDays.length>0) recurrence=customDays;
+    const icon=resolvedIcon();
+    if(isEdit){
+      onSave({...editTask,title:title.trim(),time,color,recurrence,icon,categoryId:selectedCatId});
     } else {
-      const nudgeAtFinal = nudgeMins ? Date.now() + parseInt(nudgeMins) * 60000 : null;
-      onSave({ title: title.trim(), time, color, date: selectedDay, nudgeAt: nudgeAtFinal, recurrence, icon, categoryId: selectedCatId });
+      const nudgeAt=nudgeMins?Date.now()+parseInt(nudgeMins)*60000:null;
+      onSave({title:title.trim(),time,color,date:selectedDay,nudgeAt,recurrence,icon,categoryId:selectedCatId});
     }
     onClose();
   };
-
-  const d = parseDate(selectedDay);
-  const label = `${DAY_NAMES[d.getDay()]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
-
+  const d=parseDate(selectedDay);
+  const label=`${DAY_NAMES[d.getDay()]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
   return (
-    <div onClick={e => { if(e.target===e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, background:"rgba(10,20,50,0.5)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:200, backdropFilter:"blur(6px)", animation:"fadeIn 0.2s ease" }}>
-      <div style={{ background:"#fff", borderRadius:"24px 24px 0 0", padding:"28px 24px 36px", width:"100%", maxWidth:"480px", boxShadow:"0 -20px 60px rgba(27,58,107,0.25)", animation:"slideUp 0.25s ease", maxHeight:"92vh", overflowY:"auto" }}>
-        <div style={{ width:"40px", height:"4px", background:"#E0E6F0", borderRadius:"2px", margin:"0 auto 20px" }} />
-        <div style={{ fontSize:"13px", color:NAVY, letterSpacing:"0.05em", marginBottom:"18px", fontWeight:"600" }}>
-          {isEdit ? "✏️ Edit Task" : `📋 ${label}`}
+    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+      style={{position:"fixed",inset:0,background:"rgba(10,20,50,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200,backdropFilter:"blur(6px)",animation:"fadeIn 0.2s ease"}}>
+      <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 24px 36px",width:"100%",maxWidth:"480px",boxShadow:"0 -20px 60px rgba(27,58,107,0.25)",animation:"slideUp 0.25s ease",maxHeight:"92vh",overflowY:"auto"}}>
+        <div style={{width:"40px",height:"4px",background:"#E0E6F0",borderRadius:"2px",margin:"0 auto 20px"}}/>
+        <div style={{fontSize:"13px",color:NAVY,letterSpacing:"0.05em",marginBottom:"18px",fontWeight:"600"}}>{isEdit?"✏️ Edit Task":`📋 ${label}`}</div>
+        <input value={title} onChange={e=>setTitle(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="What needs doing..."
+          style={{width:"100%",background:"#F4F7FF",border:"2px solid #E0E8FF",borderRadius:"14px",padding:"14px 16px",color:"#1A1A1A",fontSize:"16px",outline:"none",marginBottom:"14px"}}/>
+        <div style={{marginBottom:"16px"}}>
+          <div style={{fontSize:"11px",color:"#AAA",letterSpacing:"0.12em",marginBottom:"8px",fontWeight:"600"}}>TIME — OPTIONAL</div>
+          <input type="time" value={time} onChange={e=>setTime(e.target.value)}
+            style={{background:"#F4F7FF",border:"2px solid #E0E8FF",borderRadius:"12px",padding:"10px 14px",color:"#1A1A1A",fontSize:"14px",fontFamily:"inherit",outline:"none"}}/>
         </div>
-
-        <input value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => e.key==="Enter" && submit()}
-          placeholder="What needs doing..."
-          style={{ width:"100%", background:"#F4F7FF", border:`2px solid #E0E8FF`, borderRadius:"14px", padding:"14px 16px", color:"#1A1A1A", fontSize:"16px", outline:"none", marginBottom:"14px" }}/>
-
-        <div style={{ marginBottom:"16px" }}>
-          <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"8px", fontWeight:"600" }}>TIME — OPTIONAL</div>
-          <input type="time" value={time} onChange={e => setTime(e.target.value)}
-            style={{ background:"#F4F7FF", border:"2px solid #E0E8FF", borderRadius:"12px", padding:"10px 14px", color:"#1A1A1A", fontSize:"14px", fontFamily:"inherit", outline:"none" }}/>
-        </div>
-
-        <div style={{ marginBottom:"16px" }}>
-          <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"8px", fontWeight:"600" }}>ICON — OPTIONAL</div>
-          <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-            <button onClick={() => setIconPickerOpen(!iconPickerOpen)}
-              style={{ width:"46px", height:"46px", borderRadius:"12px", background:"#F4F7FF", border:`2px solid ${iconPickerOpen ? NAVY : '#E0E8FF'}`, cursor:"pointer", fontSize:"22px", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.12s" }}>
-              {resolvedIcon() || <span style={{fontSize:"12px", color:"#AAA", fontWeight:"600"}}>auto</span>}
+        <div style={{marginBottom:"16px"}}>
+          <div style={{fontSize:"11px",color:"#AAA",letterSpacing:"0.12em",marginBottom:"8px",fontWeight:"600"}}>ICON — OPTIONAL</div>
+          <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+            <button onClick={()=>setIconPickerOpen(!iconPickerOpen)}
+              style={{width:"46px",height:"46px",borderRadius:"12px",background:"#F4F7FF",border:`2px solid ${iconPickerOpen?NAVY:'#E0E8FF'}`,cursor:"pointer",fontSize:"22px",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {resolvedIcon()||<span style={{fontSize:"12px",color:"#AAA",fontWeight:"600"}}>auto</span>}
             </button>
-            {iconPickerOpen && (
-              <div style={{ display:"flex", flexDirection:"column", gap:"6px", flex:1 }}>
-                <input value={customIcon} onChange={e => handleIconChange(e.target.value)} placeholder="Paste or type any emoji 🎯"
-                  style={{ background:"#F4F7FF", border:"2px solid #E0E8FF", borderRadius:"10px", padding:"8px 12px", color:"#1A1A1A", fontSize:"18px", fontFamily:"inherit", outline:"none", width:"100%" }}/>
-                {(iconLocked) && <button onClick={resetIconToAuto} style={{ background:"none", border:"none", color:"#AAB8D0", cursor:"pointer", fontSize:"11px", fontFamily:"inherit", textAlign:"left", padding:0 }}>← reset to auto</button>}
+            {iconPickerOpen&&(
+              <div style={{display:"flex",flexDirection:"column",gap:"6px",flex:1}}>
+                <input value={customIcon} onChange={e=>handleIconChange(e.target.value)} placeholder="Paste emoji 🎯"
+                  style={{background:"#F4F7FF",border:"2px solid #E0E8FF",borderRadius:"10px",padding:"8px 12px",color:"#1A1A1A",fontSize:"18px",fontFamily:"inherit",outline:"none",width:"100%"}}/>
+                {iconLocked&&<button onClick={resetIconToAuto} style={{background:"none",border:"none",color:"#AAB8D0",cursor:"pointer",fontSize:"11px",fontFamily:"inherit",textAlign:"left",padding:0}}>← reset to auto</button>}
               </div>
             )}
-            {!iconPickerOpen && (
-              <span style={{ fontSize:"12px", color:"#AAB8D0" }}>
-                {isEdit && iconLocked ? "🔒 original icon kept" : "auto-picks based on title"}
-              </span>
-            )}
+            {!iconPickerOpen&&<span style={{fontSize:"12px",color:"#AAB8D0"}}>{isEdit&&iconLocked?"🔒 original icon kept":"auto-picks based on title"}</span>}
           </div>
         </div>
-
-        {!isEdit && (
-          <div style={{ marginBottom:"16px" }}>
-            <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"8px", fontWeight:"600" }}>🔔 NUDGE IN — OPTIONAL</div>
-            <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-              <input type="number" min="1" max="999" value={nudgeMins} onChange={e => setNudgeMins(e.target.value)} placeholder="e.g. 30"
-                style={{ background:"#F4F7FF", border:"2px solid #E0E8FF", borderRadius:"12px", padding:"10px 14px", color:"#1A1A1A", fontSize:"14px", fontFamily:"inherit", outline:"none", width:"100px" }}/>
-              <span style={{ fontSize:"13px", color:"#AAA", fontWeight:"500" }}>minutes</span>
-              {nudgeMins && <span style={{ fontSize:"12px", color:NAVY, fontWeight:"600" }}>⏰ in {nudgeMins}m</span>}
+        {!isEdit&&(
+          <div style={{marginBottom:"16px"}}>
+            <div style={{fontSize:"11px",color:"#AAA",letterSpacing:"0.12em",marginBottom:"8px",fontWeight:"600"}}>🔔 NUDGE IN — OPTIONAL</div>
+            <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+              <input type="number" min="1" max="999" value={nudgeMins} onChange={e=>setNudgeMins(e.target.value)} placeholder="e.g. 30"
+                style={{background:"#F4F7FF",border:"2px solid #E0E8FF",borderRadius:"12px",padding:"10px 14px",color:"#1A1A1A",fontSize:"14px",fontFamily:"inherit",outline:"none",width:"100px"}}/>
+              <span style={{fontSize:"13px",color:"#AAA",fontWeight:"500"}}>minutes</span>
+              {nudgeMins&&<span style={{fontSize:"12px",color:NAVY,fontWeight:"600"}}>⏰ in {nudgeMins}m</span>}
             </div>
           </div>
         )}
-
-        <div style={{ marginBottom:"16px" }}>
-          <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"10px", fontWeight:"600" }}>🏷️ CATEGORY — OPTIONAL</div>
-          <div style={{ display:"flex", gap:"7px", flexWrap:"wrap" }}>
-            {categories.map(cat => (
-              <button key={cat.id} onClick={() => {
-                if (selectedCatId === cat.id) { setSelectedCatId(null); }
-                else { setSelectedCatId(cat.id); setColor(cat.color); }
-              }} style={{
-                padding:"6px 12px", borderRadius:"20px", cursor:"pointer", fontSize:"12px", fontWeight:"600", fontFamily:"inherit",
-                background: selectedCatId === cat.id ? `linear-gradient(135deg, ${cat.color}EE, ${cat.color}BB)` : "#F4F7FF",
-                color: selectedCatId === cat.id ? "#fff" : "#666",
-                border: selectedCatId === cat.id ? `2px solid ${cat.color}` : "2px solid #E0E8FF",
-                boxShadow: selectedCatId === cat.id ? `0 3px 8px ${cat.color}55` : "none",
-                transition:"all 0.12s"
-              }}>{cat.title}</button>
+        <div style={{marginBottom:"16px"}}>
+          <div style={{fontSize:"11px",color:"#AAA",letterSpacing:"0.12em",marginBottom:"10px",fontWeight:"600"}}>🏷️ CATEGORY — OPTIONAL</div>
+          <div style={{display:"flex",gap:"7px",flexWrap:"wrap"}}>
+            {categories.map(cat=>(
+              <button key={cat.id} onClick={()=>{if(selectedCatId===cat.id){setSelectedCatId(null);}else{setSelectedCatId(cat.id);setColor(cat.color);}}}
+                style={{padding:"6px 12px",borderRadius:"20px",cursor:"pointer",fontSize:"12px",fontWeight:"600",fontFamily:"inherit",
+                  background:selectedCatId===cat.id?`linear-gradient(135deg,${cat.color}EE,${cat.color}BB)`:"#F4F7FF",
+                  color:selectedCatId===cat.id?"#fff":"#666",
+                  border:selectedCatId===cat.id?`2px solid ${cat.color}`:"2px solid #E0E8FF",
+                  boxShadow:selectedCatId===cat.id?`0 3px 8px ${cat.color}55`:"none",transition:"all 0.12s"}}>{cat.title}</button>
             ))}
           </div>
         </div>
-
-        <div style={{ marginBottom:"16px" }}>
-          <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"10px", fontWeight:"600" }}>🔁 RECURRENCE — OPTIONAL</div>
-          <div style={{ display:"flex", gap:"10px", alignItems:"center" }}>
-            <label style={{ display:"flex", alignItems:"center", gap:"6px", cursor:"pointer", fontSize:"14px", color:"#444", fontWeight:"500" }}>
-              <input type="checkbox" checked={recType==='daily'} onChange={e => setRecType(e.target.checked ? 'daily' : null)}
-                style={{ width:"16px", height:"16px", accentColor:NAVY, cursor:"pointer" }}/>
-              Daily
+        <div style={{marginBottom:"16px"}}>
+          <div style={{fontSize:"11px",color:"#AAA",letterSpacing:"0.12em",marginBottom:"10px",fontWeight:"600"}}>🔁 RECURRENCE — OPTIONAL</div>
+          <div style={{display:"flex",gap:"10px",alignItems:"center"}}>
+            <label style={{display:"flex",alignItems:"center",gap:"6px",cursor:"pointer",fontSize:"14px",color:"#444",fontWeight:"500"}}>
+              <input type="checkbox" checked={recType==='daily'} onChange={e=>setRecType(e.target.checked?'daily':null)} style={{width:"16px",height:"16px",accentColor:NAVY,cursor:"pointer"}}/>Daily
             </label>
-            <label style={{ display:"flex", alignItems:"center", gap:"6px", cursor:"pointer", fontSize:"14px", color:"#444", fontWeight:"500" }}>
-              <input type="checkbox" checked={recType==='custom'} onChange={e => { setRecType(e.target.checked ? 'custom' : null); setCustomDays([]); }}
-                style={{ width:"16px", height:"16px", accentColor:NAVY, cursor:"pointer" }}/>
-              Custom
+            <label style={{display:"flex",alignItems:"center",gap:"6px",cursor:"pointer",fontSize:"14px",color:"#444",fontWeight:"500"}}>
+              <input type="checkbox" checked={recType==='custom'} onChange={e=>{setRecType(e.target.checked?'custom':null);setCustomDays([]);}} style={{width:"16px",height:"16px",accentColor:NAVY,cursor:"pointer"}}/>Custom
             </label>
           </div>
-          {recType === 'custom' && (
-            <div style={{ display:"flex", gap:"6px", marginTop:"10px", flexWrap:"wrap" }}>
-              {["Su","Mo","Tu","We","Th","Fr","Sa"].map((lbl, i) => (
-                <button key={i} onClick={() => toggleCustomDay(i)}
-                  style={{ width:"36px", height:"36px", borderRadius:"50%", border:`2px solid ${customDays.includes(i) ? NAVY : '#E0E8FF'}`,
-                    background: customDays.includes(i) ? `linear-gradient(135deg, ${NAVY}, ${NAVY2})` : '#F4F7FF',
-                    color: customDays.includes(i) ? '#fff' : '#888',
-                    cursor:"pointer", fontSize:"11px", fontWeight:"700", fontFamily:"inherit",
-                    boxShadow: customDays.includes(i) ? `0 3px 8px rgba(27,58,107,0.3)` : 'none',
-                    transition:"all 0.12s" }}>
-                  {lbl}
-                </button>
+          {recType==='custom'&&(
+            <div style={{display:"flex",gap:"6px",marginTop:"10px",flexWrap:"wrap"}}>
+              {["Su","Mo","Tu","We","Th","Fr","Sa"].map((lbl,i)=>(
+                <button key={i} onClick={()=>toggleCustomDay(i)}
+                  style={{width:"36px",height:"36px",borderRadius:"50%",border:`2px solid ${customDays.includes(i)?NAVY:'#E0E8FF'}`,
+                    background:customDays.includes(i)?`linear-gradient(135deg,${NAVY},${NAVY2})`:'#F4F7FF',
+                    color:customDays.includes(i)?'#fff':'#888',cursor:"pointer",fontSize:"11px",fontWeight:"700",fontFamily:"inherit",
+                    boxShadow:customDays.includes(i)?`0 3px 8px rgba(27,58,107,0.3)`:'none',transition:"all 0.12s"}}>{lbl}</button>
               ))}
             </div>
           )}
         </div>
-
-        <div style={{ marginBottom:"24px" }}>
-          <div style={{ fontSize:"11px", color:"#AAA", letterSpacing:"0.12em", marginBottom:"10px", fontWeight:"600" }}>COLOR</div>
-          <div style={{ display:"flex", gap:"9px", flexWrap:"wrap", alignItems:"center" }}>
-            {PALETTE.map(c => (
-              <button key={c} onClick={() => setColor(c)} style={{
-                width:"28px", height:"28px", borderRadius:"50%",
-                background: `linear-gradient(135deg, ${c}EE, ${c}AA)`,
-                border: color===c ? `3px solid ${NAVY}` : "3px solid transparent",
-                cursor:"pointer", padding:0,
-                boxShadow: color===c ? `0 3px 8px ${c}88` : `0 2px 5px ${c}55`,
-                transform: color===c ? "scale(1.18)" : "scale(1)", transition:"all 0.12s"
-              }}/>
+        <div style={{marginBottom:"24px"}}>
+          <div style={{fontSize:"11px",color:"#AAA",letterSpacing:"0.12em",marginBottom:"10px",fontWeight:"600"}}>COLOR</div>
+          <div style={{display:"flex",gap:"9px",flexWrap:"wrap",alignItems:"center"}}>
+            {PALETTE.map(c=>(
+              <button key={c} onClick={()=>setColor(c)} style={{width:"28px",height:"28px",borderRadius:"50%",background:`linear-gradient(135deg,${c}EE,${c}AA)`,
+                border:color===c?`3px solid ${NAVY}`:"3px solid transparent",cursor:"pointer",padding:0,
+                boxShadow:color===c?`0 3px 8px ${c}88`:`0 2px 5px ${c}55`,transform:color===c?"scale(1.18)":"scale(1)",transition:"all 0.12s"}}/>
             ))}
-            <button onClick={() => setHexOpen(!hexOpen)} style={{ width:"28px", height:"28px", borderRadius:"50%", background:"conic-gradient(red,yellow,lime,cyan,blue,magenta,red)", border:"2px solid #DDD", cursor:"pointer", padding:0, boxShadow:"0 2px 6px rgba(0,0,0,0.15)" }}/>
+            <button onClick={()=>setHexOpen(!hexOpen)} style={{width:"28px",height:"28px",borderRadius:"50%",background:"conic-gradient(red,yellow,lime,cyan,blue,magenta,red)",border:"2px solid #DDD",cursor:"pointer",padding:0,boxShadow:"0 2px 6px rgba(0,0,0,0.15)"}}/>
           </div>
-          {hexOpen && (
-            <div style={{ marginTop:"12px", display:"flex", gap:"10px", alignItems:"center" }}>
-              <input type="color" value={color} onChange={e => { setColor(e.target.value); setHexInput(e.target.value); }}
-                style={{ width:"38px", height:"38px", border:"none", background:"none", cursor:"pointer", borderRadius:"8px", padding:0 }}/>
-              <input value={hexInput || color} onChange={e => { setHexInput(e.target.value); if(/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) setColor(e.target.value); }}
-                placeholder="#E85D4A"
-                style={{ background:"#F4F7FF", border:"2px solid #E0E8FF", borderRadius:"10px", padding:"8px 12px", color:"#1A1A1A", fontSize:"12px", fontFamily:"inherit", outline:"none", width:"100px" }}/>
-              <div style={{ width:"26px", height:"26px", borderRadius:"50%", background:color, boxShadow:`0 3px 8px ${color}77`, flexShrink:0 }}/>
+          {hexOpen&&(
+            <div style={{marginTop:"12px",display:"flex",gap:"10px",alignItems:"center"}}>
+              <input type="color" value={color} onChange={e=>{setColor(e.target.value);setHexInput(e.target.value);}} style={{width:"38px",height:"38px",border:"none",background:"none",cursor:"pointer",borderRadius:"8px",padding:0}}/>
+              <input value={hexInput||color} onChange={e=>{setHexInput(e.target.value);if(/^#[0-9A-Fa-f]{6}$/.test(e.target.value))setColor(e.target.value);}} placeholder="#E85D4A"
+                style={{background:"#F4F7FF",border:"2px solid #E0E8FF",borderRadius:"10px",padding:"8px 12px",color:"#1A1A1A",fontSize:"12px",fontFamily:"inherit",outline:"none",width:"100px"}}/>
+              <div style={{width:"26px",height:"26px",borderRadius:"50%",background:color,boxShadow:`0 3px 8px ${color}77`,flexShrink:0}}/>
             </div>
           )}
         </div>
-
-        <div style={{ display:"flex", gap:"10px" }}>
-          <button onClick={onClose} style={{ flex:1, background:"#F4F7FF", border:"2px solid #E0E8FF", color:"#888", padding:"14px", borderRadius:"14px", cursor:"pointer", fontSize:"14px", fontFamily:"inherit", fontWeight:"600" }}>Cancel</button>
-          <button onClick={submit} style={{ flex:2, background:`linear-gradient(135deg, ${NAVY}, ${NAVY2})`, border:"none", color:"#fff", padding:"14px", borderRadius:"14px", cursor:"pointer", fontSize:"14px", fontFamily:"inherit", fontWeight:"700", boxShadow:`0 5px 0 rgba(0,0,0,0.2), 0 8px 20px rgba(27,58,107,0.3)` }}>
-            {isEdit ? "Save Changes ✓" : "Add Task ✓"}
+        <div style={{display:"flex",gap:"10px"}}>
+          <button onClick={onClose} style={{flex:1,background:"#F4F7FF",border:"2px solid #E0E8FF",color:"#888",padding:"14px",borderRadius:"14px",cursor:"pointer",fontSize:"14px",fontFamily:"inherit",fontWeight:"600"}}>Cancel</button>
+          <button onClick={submit} style={{flex:2,background:`linear-gradient(135deg,${NAVY},${NAVY2})`,border:"none",color:"#fff",padding:"14px",borderRadius:"14px",cursor:"pointer",fontSize:"14px",fontFamily:"inherit",fontWeight:"700",boxShadow:`0 5px 0 rgba(0,0,0,0.2),0 8px 20px rgba(27,58,107,0.3)`}}>
+            {isEdit?"Save Changes ✓":"Add Task ✓"}
           </button>
         </div>
       </div>
@@ -446,214 +503,135 @@ function TaskModal({ selectedDay, onClose, onSave, getNextColor, categories, edi
   );
 }
 
-// ─── CATEGORY MANAGER MODAL ───────────────────────────────────────────
+// ─── CATEGORY MANAGER ────────────────────────────────────────────────
 function CategoryManager({ categories, onClose, onSave }) {
-  const [cats, setCats] = React.useState(categories.map(c => ({...c})));
-  const [hexOpenId, setHexOpenId] = React.useState(null);
-
-  const updateTitle = (id, title) => setCats(prev => prev.map(c => c.id===id ? {...c, title} : c));
-  const updateColor = (id, color) => setCats(prev => prev.map(c => c.id===id ? {...c, color} : c));
-
+  const [cats,setCats]=React.useState(categories.map(c=>({...c})));
+  const [hexOpenId,setHexOpenId]=React.useState(null);
+  const updateTitle=(id,title)=>setCats(prev=>prev.map(c=>c.id===id?{...c,title}:c));
+  const updateColor=(id,color)=>setCats(prev=>prev.map(c=>c.id===id?{...c,color}:c));
   return (
-    <div onClick={e => { if(e.target===e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, background:"rgba(10,20,50,0.5)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:300, backdropFilter:"blur(6px)" }}>
-      <div style={{ background:"#fff", borderRadius:"24px 24px 0 0", padding:"24px 22px 36px", width:"100%", maxWidth:"480px", boxShadow:"0 -20px 60px rgba(27,58,107,0.25)", maxHeight:"80vh", overflowY:"auto" }}>
-        <div style={{ width:"40px", height:"4px", background:"#E0E6F0", borderRadius:"2px", margin:"0 auto 18px" }}/>
-        <div style={{ fontSize:"14px", color:NAVY, fontWeight:"700", marginBottom:"18px", letterSpacing:"0.05em" }}>🏷️ Edit Categories</div>
-        {cats.map(cat => (
-          <div key={cat.id} style={{ marginBottom:"14px", background:"#F4F7FF", borderRadius:"14px", padding:"12px 14px", border:"2px solid #E0E8FF" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom: hexOpenId===cat.id ? "10px" : "0" }}>
-              <button onClick={() => setHexOpenId(hexOpenId===cat.id ? null : cat.id)}
-                style={{ width:"32px", height:"32px", borderRadius:"50%", background:`linear-gradient(135deg, ${cat.color}EE, ${cat.color}AA)`, border:"2px solid #DDD", cursor:"pointer", padding:0, flexShrink:0, boxShadow:`0 3px 8px ${cat.color}55` }}/>
-              <input value={cat.title} onChange={e => updateTitle(cat.id, e.target.value)}
-                style={{ flex:1, background:"#fff", border:"2px solid #E0E8FF", borderRadius:"10px", padding:"8px 12px", color:"#1A1A1A", fontSize:"14px", fontFamily:"inherit", outline:"none", fontWeight:"600" }}/>
+    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+      style={{position:"fixed",inset:0,background:"rgba(10,20,50,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:300,backdropFilter:"blur(6px)"}}>
+      <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"24px 22px 36px",width:"100%",maxWidth:"480px",boxShadow:"0 -20px 60px rgba(27,58,107,0.25)",maxHeight:"80vh",overflowY:"auto"}}>
+        <div style={{width:"40px",height:"4px",background:"#E0E6F0",borderRadius:"2px",margin:"0 auto 18px"}}/>
+        <div style={{fontSize:"14px",color:NAVY,fontWeight:"700",marginBottom:"18px"}}>🏷️ Edit Categories</div>
+        {cats.map(cat=>(
+          <div key={cat.id} style={{marginBottom:"14px",background:"#F4F7FF",borderRadius:"14px",padding:"12px 14px",border:"2px solid #E0E8FF"}}>
+            <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:hexOpenId===cat.id?"10px":"0"}}>
+              <button onClick={()=>setHexOpenId(hexOpenId===cat.id?null:cat.id)}
+                style={{width:"32px",height:"32px",borderRadius:"50%",background:`linear-gradient(135deg,${cat.color}EE,${cat.color}AA)`,border:"2px solid #DDD",cursor:"pointer",padding:0,flexShrink:0,boxShadow:`0 3px 8px ${cat.color}55`}}/>
+              <input value={cat.title} onChange={e=>updateTitle(cat.id,e.target.value)}
+                style={{flex:1,background:"#fff",border:"2px solid #E0E8FF",borderRadius:"10px",padding:"8px 12px",color:"#1A1A1A",fontSize:"14px",fontFamily:"inherit",outline:"none",fontWeight:"600"}}/>
             </div>
-            {hexOpenId === cat.id && (
-              <div style={{ display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}>
-                {["#E85D4A","#F4A261","#2A9D8F","#457B9D","#9B5DE5","#F15BB5","#00BBF9","#FFBE0B","#1B3A6B","#2A5298"].map(c => (
-                  <button key={c} onClick={() => updateColor(cat.id, c)}
-                    style={{ width:"24px", height:"24px", borderRadius:"50%", background:c, border: cat.color===c ? `3px solid #1A1A1A` : "3px solid transparent", cursor:"pointer", padding:0, transition:"transform 0.1s", transform: cat.color===c ? "scale(1.2)" : "scale(1)" }}/>
+            {hexOpenId===cat.id&&(
+              <div style={{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}}>
+                {["#E85D4A","#F4A261","#2A9D8F","#457B9D","#9B5DE5","#F15BB5","#00BBF9","#FFBE0B","#1B3A6B","#2A5298"].map(c=>(
+                  <button key={c} onClick={()=>updateColor(cat.id,c)}
+                    style={{width:"24px",height:"24px",borderRadius:"50%",background:c,border:cat.color===c?"3px solid #1A1A1A":"3px solid transparent",cursor:"pointer",padding:0,transition:"transform 0.1s",transform:cat.color===c?"scale(1.2)":"scale(1)"}}/>
                 ))}
-                <input placeholder="#hex" maxLength={7} onChange={e => { if(/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) updateColor(cat.id, e.target.value); }}
-                  style={{ background:"#fff", border:"2px solid #E0E8FF", borderRadius:"8px", padding:"5px 8px", color:"#1A1A1A", fontSize:"11px", fontFamily:"inherit", outline:"none", width:"70px" }}/>
+                <input placeholder="#hex" maxLength={7} onChange={e=>{if(/^#[0-9A-Fa-f]{6}$/.test(e.target.value))updateColor(cat.id,e.target.value);}}
+                  style={{background:"#fff",border:"2px solid #E0E8FF",borderRadius:"8px",padding:"5px 8px",color:"#1A1A1A",fontSize:"11px",fontFamily:"inherit",outline:"none",width:"70px"}}/>
               </div>
             )}
           </div>
         ))}
-        <div style={{ display:"flex", gap:"10px", marginTop:"6px" }}>
-          <button onClick={onClose} style={{ flex:1, background:"#F4F7FF", border:"2px solid #E0E8FF", color:"#888", padding:"12px", borderRadius:"12px", cursor:"pointer", fontSize:"13px", fontFamily:"inherit", fontWeight:"600" }}>Cancel</button>
-          <button onClick={() => { onSave(cats); onClose(); }} style={{ flex:2, background:`linear-gradient(135deg, ${NAVY}, ${NAVY2})`, border:"none", color:"#fff", padding:"12px", borderRadius:"12px", cursor:"pointer", fontSize:"13px", fontFamily:"inherit", fontWeight:"700", boxShadow:`0 4px 0 rgba(0,0,0,0.2)` }}>Save Categories ✓</button>
+        <div style={{display:"flex",gap:"10px",marginTop:"6px"}}>
+          <button onClick={onClose} style={{flex:1,background:"#F4F7FF",border:"2px solid #E0E8FF",color:"#888",padding:"12px",borderRadius:"12px",cursor:"pointer",fontSize:"13px",fontFamily:"inherit",fontWeight:"600"}}>Cancel</button>
+          <button onClick={()=>{onSave(cats);onClose();}} style={{flex:2,background:`linear-gradient(135deg,${NAVY},${NAVY2})`,border:"none",color:"#fff",padding:"12px",borderRadius:"12px",cursor:"pointer",fontSize:"13px",fontFamily:"inherit",fontWeight:"700",boxShadow:`0 4px 0 rgba(0,0,0,0.2)`}}>Save ✓</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── LISTS PANEL ────────────────────────────────────────────────────────
+// ─── LISTS PANEL ─────────────────────────────────────────────────────
 function ListsPanel({ onClose }) {
-  const [lists, setLists] = React.useState([]);
-  const [loaded, setLoaded] = React.useState(false);
-  const [activeListId, setActiveListId] = React.useState(null);
-  const [newListName, setNewListName] = React.useState("");
-  const [newItemText, setNewItemText] = React.useState("");
-  const [showNewList, setShowNewList] = React.useState(false);
-
-  React.useEffect(() => {
-    fbLoadLists().then(data => {
-      if (data && data.length) setLists(data);
-      setLoaded(true);
-    });
-  }, []);
-
-  const save = (updated) => { setLists(updated); fbSaveLists(updated); };
-
-  const addList = () => {
-    if (!newListName.trim()) return;
-    const newList = { id: Date.now().toString(), name: newListName.trim(), items: [] };
-    const updated = [...lists, newList];
-    save(updated);
-    setActiveListId(newList.id);
-    setNewListName("");
-    setShowNewList(false);
+  const [lists,setLists]=React.useState([]);
+  const [loaded,setLoaded]=React.useState(false);
+  const [activeListId,setActiveListId]=React.useState(null);
+  const [newListName,setNewListName]=React.useState("");
+  const [newItemText,setNewItemText]=React.useState("");
+  const [showNewList,setShowNewList]=React.useState(false);
+  React.useEffect(()=>{fbLoadLists().then(data=>{if(data&&data.length)setLists(data);setLoaded(true);});}, []);
+  const save=(u)=>{setLists(u);fbSaveLists(u);};
+  const addList=()=>{
+    if(!newListName.trim())return;
+    const nl={id:Date.now().toString(),name:newListName.trim(),items:[]};
+    const u=[...lists,nl];save(u);setActiveListId(nl.id);setNewListName("");setShowNewList(false);
   };
-
-  const deleteList = (id) => {
-    const updated = lists.filter(l => l.id !== id);
-    save(updated);
-    if (activeListId === id) setActiveListId(null);
+  const deleteList=(id)=>{const u=lists.filter(l=>l.id!==id);save(u);if(activeListId===id)setActiveListId(null);};
+  const addItem=()=>{
+    if(!newItemText.trim()||!activeListId)return;
+    const u=lists.map(l=>l.id===activeListId?{...l,items:[...l.items,{id:Date.now().toString(),text:newItemText.trim(),checked:false}]}:l);
+    save(u);setNewItemText("");
   };
-
-  const addItem = () => {
-    if (!newItemText.trim() || !activeListId) return;
-    const updated = lists.map(l => l.id === activeListId
-      ? { ...l, items: [...l.items, { id: Date.now().toString(), text: newItemText.trim(), checked: false }] }
-      : l
-    );
-    save(updated);
-    setNewItemText("");
+  const toggleItem=(listId,itemId)=>{
+    const u=lists.map(l=>l.id===listId?{...l,items:l.items.map(it=>it.id===itemId?{...it,checked:!it.checked}:it)}:l);save(u);
   };
-
-  const toggleItem = (listId, itemId) => {
-    const updated = lists.map(l => l.id === listId
-      ? { ...l, items: l.items.map(it => it.id === itemId ? { ...it, checked: !it.checked } : it) }
-      : l
-    );
-    save(updated);
+  const deleteItem=(listId,itemId)=>{
+    const u=lists.map(l=>l.id===listId?{...l,items:l.items.filter(it=>it.id!==itemId)}:l);save(u);
   };
-
-  const deleteItem = (listId, itemId) => {
-    const updated = lists.map(l => l.id === listId
-      ? { ...l, items: l.items.filter(it => it.id !== itemId) }
-      : l
-    );
-    save(updated);
-  };
-
-  const activeList = lists.find(l => l.id === activeListId);
-
+  const activeList=lists.find(l=>l.id===activeListId);
   return (
-    <div onClick={e => { if(e.target===e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, background:"rgba(10,20,50,0.5)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:250, backdropFilter:"blur(6px)", animation:"fadeIn 0.2s ease" }}>
-      <div style={{ background:"#fff", borderRadius:"24px 24px 0 0", padding:"24px 22px 40px", width:"100%", maxWidth:"480px", boxShadow:"0 -20px 60px rgba(27,58,107,0.25)", animation:"slideUp 0.25s ease", maxHeight:"88vh", display:"flex", flexDirection:"column" }}>
-        <div style={{ width:"40px", height:"4px", background:"#E0E6F0", borderRadius:"2px", margin:"0 auto 20px" }}/>
-        
-        {/* Header */}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-            {activeList && (
-              <button onClick={() => setActiveListId(null)} style={{ background:"none", border:"none", color:NAVY, cursor:"pointer", fontSize:"18px", padding:"0 4px 0 0", lineHeight:1 }}>‹</button>
-            )}
-            <div style={{ fontSize:"15px", color:NAVY, fontWeight:"700" }}>
-              {activeList ? activeList.name : "📋 My Lists"}
-            </div>
+    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+      style={{position:"fixed",inset:0,background:"rgba(10,20,50,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:250,backdropFilter:"blur(6px)",animation:"fadeIn 0.2s ease"}}>
+      <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"24px 22px 40px",width:"100%",maxWidth:"480px",boxShadow:"0 -20px 60px rgba(27,58,107,0.25)",animation:"slideUp 0.25s ease",maxHeight:"88vh",display:"flex",flexDirection:"column"}}>
+        <div style={{width:"40px",height:"4px",background:"#E0E6F0",borderRadius:"2px",margin:"0 auto 20px"}}/>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+            {activeList&&<button onClick={()=>setActiveListId(null)} style={{background:"none",border:"none",color:NAVY,cursor:"pointer",fontSize:"18px",padding:"0 4px 0 0",lineHeight:1}}>‹</button>}
+            <div style={{fontSize:"15px",color:NAVY,fontWeight:"700"}}>{activeList?activeList.name:"📋 My Lists"}</div>
           </div>
-          {!activeList && (
-            <button onClick={() => setShowNewList(!showNewList)} style={{
-              background:`linear-gradient(135deg, ${NAVY}, ${NAVY2})`, border:"none", borderRadius:"20px",
-              color:"#fff", padding:"6px 14px", cursor:"pointer", fontSize:"12px", fontWeight:"700", fontFamily:"inherit"
-            }}>+ New List</button>
-          )}
+          {!activeList&&<button onClick={()=>setShowNewList(!showNewList)} style={{background:`linear-gradient(135deg,${NAVY},${NAVY2})`,border:"none",borderRadius:"20px",color:"#fff",padding:"6px 14px",cursor:"pointer",fontSize:"12px",fontWeight:"700",fontFamily:"inherit"}}>+ New List</button>}
         </div>
-
-        {/* New list input */}
-        {showNewList && !activeList && (
-          <div style={{ display:"flex", gap:"8px", marginBottom:"14px" }}>
-            <input
-              value={newListName} onChange={e => setNewListName(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && addList()}
-              placeholder="List name..."
-              autoFocus
-              style={{ flex:1, background:"#F4F7FF", border:"2px solid #E0E8FF", borderRadius:"12px", padding:"10px 14px", color:"#1A1A1A", fontSize:"14px", fontFamily:"inherit", outline:"none" }}
-            />
-            <button onClick={addList} style={{ background:`linear-gradient(135deg, ${NAVY}, ${NAVY2})`, border:"none", borderRadius:"12px", color:"#fff", padding:"10px 16px", cursor:"pointer", fontSize:"13px", fontWeight:"700", fontFamily:"inherit" }}>Add</button>
+        {showNewList&&!activeList&&(
+          <div style={{display:"flex",gap:"8px",marginBottom:"14px"}}>
+            <input value={newListName} onChange={e=>setNewListName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addList()} placeholder="List name..." autoFocus
+              style={{flex:1,background:"#F4F7FF",border:"2px solid #E0E8FF",borderRadius:"12px",padding:"10px 14px",color:"#1A1A1A",fontSize:"14px",fontFamily:"inherit",outline:"none"}}/>
+            <button onClick={addList} style={{background:`linear-gradient(135deg,${NAVY},${NAVY2})`,border:"none",borderRadius:"12px",color:"#fff",padding:"10px 16px",cursor:"pointer",fontSize:"13px",fontWeight:"700",fontFamily:"inherit"}}>Add</button>
           </div>
         )}
-
-        <div style={{ flex:1, overflowY:"auto" }}>
-          {/* List of lists */}
-          {!activeList && (
-            <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              {!loaded && <div style={{ color:"#AAB8D0", fontSize:"13px", textAlign:"center", padding:"24px" }}>Loading...</div>}
-              {loaded && lists.length === 0 && !showNewList && (
-                <div style={{ textAlign:"center", padding:"40px 20px" }}>
-                  <div style={{ fontSize:"36px", marginBottom:"10px" }}>📋</div>
-                  <div style={{ fontSize:"15px", color:"#AAB8D0", fontWeight:"500" }}>No lists yet</div>
-                  <div style={{ fontSize:"12px", color:"#C5D0E0", marginTop:"4px" }}>Tap + New List to get started</div>
+        <div style={{flex:1,overflowY:"auto"}}>
+          {!activeList&&(
+            <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+              {!loaded&&<div style={{color:"#AAB8D0",fontSize:"13px",textAlign:"center",padding:"24px"}}>Loading...</div>}
+              {loaded&&lists.length===0&&!showNewList&&(
+                <div style={{textAlign:"center",padding:"40px 20px"}}>
+                  <div style={{fontSize:"36px",marginBottom:"10px"}}>📋</div>
+                  <div style={{fontSize:"15px",color:"#AAB8D0",fontWeight:"500"}}>No lists yet</div>
                 </div>
               )}
-              {lists.map(list => (
-                <div key={list.id} style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-                  <button onClick={() => setActiveListId(list.id)} style={{
-                    flex:1, background:"#F4F7FF", border:"2px solid #E0E8FF", borderRadius:"14px",
-                    padding:"13px 16px", cursor:"pointer", textAlign:"left", fontFamily:"inherit",
-                    display:"flex", alignItems:"center", justifyContent:"space-between",
-                    transition:"all 0.12s"
-                  }}>
+              {lists.map(list=>(
+                <div key={list.id} style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                  <button onClick={()=>setActiveListId(list.id)} style={{flex:1,background:"#F4F7FF",border:"2px solid #E0E8FF",borderRadius:"14px",padding:"13px 16px",cursor:"pointer",textAlign:"left",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <div>
-                      <div style={{ fontSize:"14px", color:NAVY, fontWeight:"600" }}>{list.name}</div>
-                      <div style={{ fontSize:"11px", color:"#AAB8D0", marginTop:"2px" }}>
-                        {list.items.length === 0 ? "empty" : `${list.items.filter(i=>i.checked).length}/${list.items.length} done`}
-                      </div>
+                      <div style={{fontSize:"14px",color:NAVY,fontWeight:"600"}}>{list.name}</div>
+                      <div style={{fontSize:"11px",color:"#AAB8D0",marginTop:"2px"}}>{list.items.length===0?"empty":`${list.items.filter(i=>i.checked).length}/${list.items.length} done`}</div>
                     </div>
-                    <span style={{ fontSize:"16px", color:"#C0CCDF" }}>›</span>
+                    <span style={{fontSize:"16px",color:"#C0CCDF"}}>›</span>
                   </button>
-                  <button onClick={() => deleteList(list.id)} style={{ background:"none", border:"none", color:"#D0DCEE", cursor:"pointer", fontSize:"16px", padding:"8px", flexShrink:0, fontFamily:"inherit" }}>✕</button>
+                  <button onClick={()=>deleteList(list.id)} style={{background:"none",border:"none",color:"#D0DCEE",cursor:"pointer",fontSize:"16px",padding:"8px",flexShrink:0}}>✕</button>
                 </div>
               ))}
             </div>
           )}
-
-          {/* Active list items */}
-          {activeList && (
-            <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-              {/* Add item input */}
-              <div style={{ display:"flex", gap:"8px", marginBottom:"8px" }}>
-                <input
-                  value={newItemText} onChange={e => setNewItemText(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && addItem()}
-                  placeholder="Add item..."
-                  style={{ flex:1, background:"#F4F7FF", border:"2px solid #E0E8FF", borderRadius:"12px", padding:"10px 14px", color:"#1A1A1A", fontSize:"14px", fontFamily:"inherit", outline:"none" }}
-                />
-                <button onClick={addItem} style={{ background:`linear-gradient(135deg, ${NAVY}, ${NAVY2})`, border:"none", borderRadius:"12px", color:"#fff", padding:"10px 16px", cursor:"pointer", fontSize:"13px", fontWeight:"700", fontFamily:"inherit" }}>Add</button>
+          {activeList&&(
+            <div style={{display:"flex",flexDirection:"column",gap:"6px"}}>
+              <div style={{display:"flex",gap:"8px",marginBottom:"8px"}}>
+                <input value={newItemText} onChange={e=>setNewItemText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addItem()} placeholder="Add item..."
+                  style={{flex:1,background:"#F4F7FF",border:"2px solid #E0E8FF",borderRadius:"12px",padding:"10px 14px",color:"#1A1A1A",fontSize:"14px",fontFamily:"inherit",outline:"none"}}/>
+                <button onClick={addItem} style={{background:`linear-gradient(135deg,${NAVY},${NAVY2})`,border:"none",borderRadius:"12px",color:"#fff",padding:"10px 16px",cursor:"pointer",fontSize:"13px",fontWeight:"700",fontFamily:"inherit"}}>Add</button>
               </div>
-
-              {activeList.items.length === 0 && (
-                <div style={{ textAlign:"center", padding:"32px 20px", color:"#C5D0E0", fontSize:"13px" }}>
-                  Nothing here yet — add something above
-                </div>
-              )}
-              {activeList.items.map(item => (
-                <div key={item.id} style={{ display:"flex", alignItems:"center", gap:"10px", background:"#F4F7FF", borderRadius:"12px", padding:"11px 14px", border:"2px solid #E0E8FF" }}>
-                  <button onClick={() => toggleItem(activeList.id, item.id)} style={{
-                    width:"22px", height:"22px", borderRadius:"50%", flexShrink:0, cursor:"pointer", fontFamily:"inherit",
-                    background: item.checked ? `linear-gradient(135deg, ${NAVY}, ${NAVY2})` : "#fff",
-                    border: item.checked ? "none" : "2px solid #C0CCDF",
-                    color:"#fff", fontSize:"11px", display:"flex", alignItems:"center", justifyContent:"center",
-                    boxShadow: item.checked ? `0 2px 6px rgba(27,58,107,0.3)` : "none",
-                    transition:"all 0.15s"
-                  }}>{item.checked ? "✓" : ""}</button>
-                  <span style={{ flex:1, fontSize:"14px", color: item.checked ? "#B0BCCE" : "#2A3A5A", fontWeight:"500", textDecoration: item.checked ? "line-through" : "none", lineHeight:1.35 }}>{item.text}</span>
-                  <button onClick={() => deleteItem(activeList.id, item.id)} style={{ background:"none", border:"none", color:"#D0DCEE", cursor:"pointer", fontSize:"15px", padding:"4px", fontFamily:"inherit", flexShrink:0 }}>✕</button>
+              {activeList.items.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:"#C5D0E0",fontSize:"13px"}}>Nothing here yet</div>}
+              {activeList.items.map(item=>(
+                <div key={item.id} style={{display:"flex",alignItems:"center",gap:"10px",background:"#F4F7FF",borderRadius:"12px",padding:"11px 14px",border:"2px solid #E0E8FF"}}>
+                  <button onClick={()=>toggleItem(activeList.id,item.id)} style={{width:"22px",height:"22px",borderRadius:"50%",flexShrink:0,cursor:"pointer",
+                    background:item.checked?`linear-gradient(135deg,${NAVY},${NAVY2})`:"#fff",
+                    border:item.checked?"none":"2px solid #C0CCDF",color:"#fff",fontSize:"11px",
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    boxShadow:item.checked?`0 2px 6px rgba(27,58,107,0.3)`:"none",transition:"all 0.15s"}}>{item.checked?"✓":""}</button>
+                  <span style={{flex:1,fontSize:"14px",color:item.checked?"#B0BCCE":"#2A3A5A",fontWeight:"500",textDecoration:item.checked?"line-through":"none"}}>{item.text}</span>
+                  <button onClick={()=>deleteItem(activeList.id,item.id)} style={{background:"none",border:"none",color:"#D0DCEE",cursor:"pointer",fontSize:"15px",padding:"4px"}}>✕</button>
                 </div>
               ))}
             </div>
@@ -664,295 +642,301 @@ function ListsPanel({ onClose }) {
   );
 }
 
-// ─── MAIN APP ──────────────────────────────────────────────────────────
+// ─── MAIN APP ─────────────────────────────────────────────────────────
 function TaskCalendar() {
-  const [tasks, setTasks] = React.useState([]);
-  const [view, setView] = React.useState("day");
-  const [currentDay, setCurrentDay] = React.useState(todayStr());
-  const [weekStart, setWeekStart] = React.useState(() => getWeekStart(new Date()));
-  const [monthRef, setMonthRef] = React.useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const [showModal, setShowModal] = React.useState(false);
-  const [modalDay, setModalDay] = React.useState(todayStr());
-  const [editingTask, setEditingTask] = React.useState(null);
-  const [draggedId, setDraggedId] = React.useState(null);
-  const [dragOverDay, setDragOverDay] = React.useState(null);
-  const [nudgeBanner, setNudgeBanner] = React.useState(null);
-  const [categories, setCategories] = React.useState(DEFAULT_CATEGORIES);
-  const [showCatManager, setShowCatManager] = React.useState(false);
-  const [showLists, setShowLists] = React.useState(false);
-  const nudgeTimers = React.useRef({});
+  const [tasks,setTasks]=React.useState([]);
+  const [view,setView]=React.useState("day");
+  const [currentDay,setCurrentDay]=React.useState(todayStr());
+  const [weekStart,setWeekStart]=React.useState(()=>getWeekStart(new Date()));
+  const [monthRef,setMonthRef]=React.useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));
+  const [showModal,setShowModal]=React.useState(false);
+  const [modalDay,setModalDay]=React.useState(todayStr());
+  const [editingTask,setEditingTask]=React.useState(null);
+  const [weekDragId,setWeekDragId]=React.useState(null);
+  const [weekDragOverDay,setWeekDragOverDay]=React.useState(null);
+  const [nudgeBanner,setNudgeBanner]=React.useState(null);
+  const [categories,setCategories]=React.useState(DEFAULT_CATEGORIES);
+  const [showCatManager,setShowCatManager]=React.useState(false);
+  const [showLists,setShowLists]=React.useState(false);
+  const [showRoutines,setShowRoutines]=React.useState(false);
+  const [routineTask,setRoutineTask]=React.useState(null);
+  const [subtasksMap,setSubtasksMap]=React.useState({});
+  const [dayOrder,setDayOrder]=React.useState({});
+  const [dayDragState,setDayDragState]=React.useState({draggingId:null,overIndex:null});
+  const nudgeTimers=React.useRef({});
+  // ref so pointer move handler always has current tasks/order
+  const stateRef=React.useRef({tasks:[],dayOrder:{},currentDay:todayStr()});
 
-  React.useEffect(() => {
-    (async () => {
-      const catData = await fbLoadCategories();
-      if (catData && catData.length) setCategories(catData.filter(Boolean));
-      else fbSaveCategories(DEFAULT_CATEGORIES);
+  React.useEffect(()=>{
+    stateRef.current={tasks,dayOrder,currentDay};
+  },[tasks,dayOrder,currentDay]);
 
-      const taskData = await fbLoad();
-      if (taskData && taskData.length) {
-        const td = todayStr();
-        const arr = taskData.filter(t => t && t.id).map(t =>
-          (!t.recurrence && !t.completed && t.date < td) ? { ...t, date: td } : t
+  React.useEffect(()=>{
+    (async()=>{
+      const catData=await fbLoadCats();
+      if(catData&&catData.length) setCategories(catData.filter(Boolean));
+      else fbSaveCats(DEFAULT_CATEGORIES);
+      const taskData=await fbLoad();
+      if(taskData&&taskData.length){
+        const td=todayStr();
+        const arr=taskData.filter(t=>t&&t.id).map(t=>
+          (!t.recurrence&&!t.completed&&t.date<td)?{...t,date:td}:t
         );
-        setTasks(arr);
-        fbSave(arr);
+        setTasks(arr);fbSave(arr);
       }
+      const orderData=await fbLoadDayOrder();
+      if(orderData) setDayOrder(orderData);
+      const subData=await fbLoadSubtasks();
+      if(subData) setSubtasksMap(subData);
     })();
-  }, []);
+  },[]);
 
-  React.useEffect(() => {
+  React.useEffect(()=>{
     Object.values(nudgeTimers.current).forEach(clearTimeout);
-    nudgeTimers.current = {};
-    tasks.forEach(task => {
-      if (task.nudgeAt && !task.completed && !task.nudgeFired) {
-        const delay = task.nudgeAt - Date.now();
-        if (delay > 0) {
-          nudgeTimers.current[task.id] = setTimeout(() => {
-            setNudgeBanner({ title: task.title, color: task.color, id: task.id });
-            setTasks(prev => {
-              const updated = prev.map(t => t.id === task.id ? { ...t, nudgeFired: true } : t);
-              fbSave(updated);
-              return updated;
-            });
-          }, delay);
+    nudgeTimers.current={};
+    tasks.forEach(task=>{
+      if(task.nudgeAt&&!task.completed&&!task.nudgeFired){
+        const delay=task.nudgeAt-Date.now();
+        if(delay>0){
+          nudgeTimers.current[task.id]=setTimeout(()=>{
+            setNudgeBanner({title:task.title,color:task.color,id:task.id});
+            setTasks(prev=>{const u=prev.map(t=>t.id===task.id?{...t,nudgeFired:true}:t);fbSave(u);return u;});
+          },delay);
         }
       }
     });
-    return () => Object.values(nudgeTimers.current).forEach(clearTimeout);
-  }, [tasks]);
+    return ()=>Object.values(nudgeTimers.current).forEach(clearTimeout);
+  },[tasks]);
 
-  const save = (t) => fbSave(t);
-
-  const getNextColor = () => {
-    const used = tasks.map(t => t.color);
-    for (const c of PALETTE) if (!used.includes(c)) return c;
-    return PALETTE[tasks.length % PALETTE.length];
+  const getNextColor=()=>{
+    const used=tasks.map(t=>t.color);
+    for(const c of PALETTE) if(!used.includes(c)) return c;
+    return PALETTE[tasks.length%PALETTE.length];
   };
-
-  const isCompleted = (task, dateStr) => {
-    if (!task.recurrence) return task.completed;
-    return Array.isArray(task.completedDates) && task.completedDates.includes(dateStr);
+  const isCompleted=(task,dateStr)=>{
+    if(!task.recurrence) return task.completed;
+    return Array.isArray(task.completedDates)&&task.completedDates.includes(dateStr);
   };
-
-  const getDayTasks = (dateStr) => {
-    const d = parseDate(dateStr);
-    const dow = d.getDay();
-    return tasks.filter(t => {
-      if (!t.recurrence) return t.date === dateStr;
-      if (dateStr < t.date) return false;
-      if (t.recurrence === 'daily') return true;
-      if (Array.isArray(t.recurrence)) return t.recurrence.includes(dow);
+  const getDayTasks=(dateStr)=>{
+    const d=parseDate(dateStr),dow=d.getDay();
+    return tasks.filter(t=>{
+      if(!t.recurrence) return t.date===dateStr;
+      if(dateStr<t.date) return false;
+      if(t.recurrence==='daily') return true;
+      if(Array.isArray(t.recurrence)) return t.recurrence.includes(dow);
       return false;
     });
   };
-
-  const addTask = (fields) => {
-    const newTask = {
-      id: Date.now().toString(),
-      title: fields.title, time: fields.time, color: fields.color,
-      date: fields.date, completed: false, completedDates: [],
-      recurrence: fields.recurrence || null,
-      nudgeAt: fields.nudgeAt || null, nudgeFired: false,
-      icon: fields.icon || getAutoIcon(fields.title, fields.categoryId),
-      categoryId: fields.categoryId || null
-    };
-    const updated = [...tasks, newTask];
-    setTasks(updated); save(updated);
-  };
-
-  const updateTask = (fields) => {
-    const updated = tasks.map(t => t.id === fields.id ? { ...t, ...fields } : t);
-    setTasks(updated); save(updated);
-  };
-
-  const handleModalSave = (fields) => {
-    if (editingTask) updateTask(fields);
-    else addTask(fields);
-  };
-
-  const toggleDone = (id, dateStr) => {
-    const updated = tasks.map(t => {
-      if (t.id !== id) return t;
-      if (!t.recurrence) return { ...t, completed: !t.completed };
-      const completedDates = t.completedDates || [];
-      const newDates = completedDates.includes(dateStr)
-        ? completedDates.filter(d => d !== dateStr)
-        : [...completedDates, dateStr];
-      return { ...t, completedDates: newDates };
+  const getOrderedDayTasks=(dateStr,tasksArr,orderObj)=>{
+    const src=tasksArr||tasks, ord=orderObj||dayOrder;
+    const raw=src.filter(t=>{
+      const d=parseDate(dateStr),dow=d.getDay();
+      if(!t.recurrence) return t.date===dateStr;
+      if(dateStr<t.date) return false;
+      if(t.recurrence==='daily') return true;
+      if(Array.isArray(t.recurrence)) return t.recurrence.includes(dow);
+      return false;
     });
-    setTasks(updated); save(updated);
+    const order=ord[dateStr];
+    if(!order||!order.length) return raw;
+    const mapped=order.map(id=>raw.find(t=>t.id===id)).filter(Boolean);
+    const unordered=raw.filter(t=>!order.includes(t.id));
+    return [...mapped,...unordered];
   };
-
-  const deleteTask = (id) => {
-    const updated = tasks.filter(t => t.id !== id);
-    setTasks(updated); save(updated);
+  const saveOrder=(dateStr,ordered)=>{
+    const ids=ordered.map(t=>t.id);
+    const newOrder={...dayOrder,[dateStr]:ids};
+    setDayOrder(newOrder);fbSaveDayOrder(newOrder);
   };
-
-  const openEdit = (task) => {
-    setEditingTask(task);
-    setShowModal(true);
+  const addTask=(fields)=>{
+    const newTask={id:Date.now().toString(),title:fields.title,time:fields.time,color:fields.color,date:fields.date,completed:false,completedDates:[],recurrence:fields.recurrence||null,nudgeAt:fields.nudgeAt||null,nudgeFired:false,icon:fields.icon||getAutoIcon(fields.title,fields.categoryId),categoryId:fields.categoryId||null};
+    const u=[...tasks,newTask];setTasks(u);fbSave(u);
   };
-
-  const openAdd = (day) => {
-    setEditingTask(null);
-    setModalDay(day);
-    setShowModal(true);
+  const updateTask=(fields)=>{
+    const u=tasks.map(t=>t.id===fields.id?{...t,...fields}:t);setTasks(u);fbSave(u);
   };
-
-  const onDragStart = (e, id) => { setDraggedId(id); e.dataTransfer.effectAllowed = "move"; };
-  const onDragEnd = () => { setDraggedId(null); setDragOverDay(null); };
-  const onDrop = (e, dateStr) => {
-    e.preventDefault();
-    if (!draggedId) return;
-    const updated = tasks.map(t => t.id === draggedId ? { ...t, date: dateStr } : t);
-    setTasks(updated); save(updated);
-    setDraggedId(null); setDragOverDay(null);
+  const handleModalSave=(fields)=>{if(editingTask)updateTask(fields);else addTask(fields);};
+  const toggleDone=(id,dateStr)=>{
+    const u=tasks.map(t=>{
+      if(t.id!==id) return t;
+      if(!t.recurrence) return{...t,completed:!t.completed};
+      const cd=t.completedDates||[];
+      const nd=cd.includes(dateStr)?cd.filter(d=>d!==dateStr):[...cd,dateStr];
+      return{...t,completedDates:nd};
+    });
+    setTasks(u);fbSave(u);
   };
-
-  const handleSaveCategories = (updated) => {
-    setCategories(updated);
-    fbSaveCategories(updated);
+  const deleteTask=(id)=>{const u=tasks.filter(t=>t.id!==id);setTasks(u);fbSave(u);};
+  const openEdit=(task)=>{setEditingTask(task);setShowModal(true);};
+  const openAdd=(day)=>{setEditingTask(null);setModalDay(day);setShowModal(true);};
+  const handleSaveSubtasks=(taskId,items)=>{
+    const nm={...subtasksMap,[taskId]:items};setSubtasksMap(nm);fbSaveSubtasks(nm);
   };
+  const onWeekDragStart=(e,id)=>{setWeekDragId(id);e.dataTransfer.effectAllowed="move";};
+  const onWeekDragEnd=()=>{setWeekDragId(null);setWeekDragOverDay(null);};
+  const onWeekDrop=(e,dateStr)=>{
+    e.preventDefault();if(!weekDragId)return;
+    const u=tasks.map(t=>t.id===weekDragId?{...t,date:dateStr}:t);setTasks(u);fbSave(u);
+    setWeekDragId(null);setWeekDragOverDay(null);
+  };
+  const handleSaveCategories=(u)=>{setCategories(u);fbSaveCats(u);};
 
-  // ── DAY VIEW ──
-  const renderDay = () => {
-    const d = parseDate(currentDay);
-    const isToday = currentDay === todayStr();
-    const dayTasks = getDayTasks(currentDay);
-    const greeting = getGreeting();
+  // ── Day-view touch drag to reorder ──────────────────────────────────
+  const pointerDrag=React.useRef({active:false,taskId:null,overIndex:null,startY:0});
 
-    return (
-      <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
-        {/* Header */}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 18px 12px", position:"sticky", top:0, zIndex:10, background:"rgba(242,245,252,0.95)", backdropFilter:"blur(8px)" }}>
-          <button className="pill-btn" onClick={() => setView("week")} style={{
-            background:`linear-gradient(135deg, ${NAVY}, ${NAVY2})`, border:"none", borderRadius:"100px", color:"#fff",
-            padding:"9px 16px", cursor:"pointer", fontSize:"13px", fontWeight:"700",
-            boxShadow:`0 4px 0 rgba(0,0,0,0.2), 0 6px 16px rgba(27,58,107,0.35)`,
-            display:"flex", alignItems:"center", gap:"6px", letterSpacing:"0.02em", transition:"transform 0.12s, box-shadow 0.12s"
-          }}>📅 See Week</button>
+  const handlePointerDown=React.useCallback((e,taskId)=>{
+    e.preventDefault();e.stopPropagation();
+    pointerDrag.current={active:true,taskId,overIndex:null,startY:e.clientY};
+    setDayDragState({draggingId:taskId,overIndex:null});
 
-          {/* Center icons: lists + settings */}
-          <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-            <button onClick={() => setShowLists(true)} style={{
-              background:"#fff", border:"1.5px solid #E0E6F0", color:NAVY,
-              width:"32px", height:"32px", borderRadius:"50%", cursor:"pointer",
-              fontSize:"14px", display:"flex", alignItems:"center", justifyContent:"center",
-              boxShadow:"0 2px 6px rgba(0,0,0,0.08)", title:"Lists"
-            }}>📋</button>
-            <button onClick={() => setShowCatManager(true)} style={{
-              background:"#fff", border:"1.5px solid #E0E6F0", color:NAVY,
-              width:"32px", height:"32px", borderRadius:"50%", cursor:"pointer",
-              fontSize:"15px", display:"flex", alignItems:"center", justifyContent:"center",
-              boxShadow:"0 2px 6px rgba(0,0,0,0.08)"
-            }}>⚙️</button>
+    const onMove=(me)=>{
+      if(!pointerDrag.current.active) return;
+      const {tasks:curTasks,dayOrder:curOrder,currentDay:curDay}=stateRef.current;
+      const ordered=getOrderedDayTasks(curDay,curTasks,curOrder);
+      const fromIdx=ordered.findIndex(t=>t.id===pointerDrag.current.taskId);
+      if(fromIdx===-1) return;
+      const dy=me.clientY-pointerDrag.current.startY;
+      // ~92px per card (card ~80px + 12px gap)
+      const newIdx=Math.max(0,Math.min(ordered.length-1,fromIdx+Math.round(dy/92)));
+      if(newIdx!==pointerDrag.current.overIndex){
+        pointerDrag.current.overIndex=newIdx;
+        setDayDragState({draggingId:pointerDrag.current.taskId,overIndex:newIdx});
+      }
+    };
+    const onUp=()=>{
+      if(!pointerDrag.current.active) return;
+      pointerDrag.current.active=false;
+      const {taskId:tid,overIndex:oi}=pointerDrag.current;
+      const {tasks:curTasks,dayOrder:curOrder,currentDay:curDay}=stateRef.current;
+      const ordered=getOrderedDayTasks(curDay,curTasks,curOrder);
+      const fromIdx=ordered.findIndex(t=>t.id===tid);
+      if(oi!==null&&oi!==fromIdx&&fromIdx!==-1){
+        const arr=[...ordered];
+        const [moved]=arr.splice(fromIdx,1);
+        arr.splice(oi,0,moved);
+        saveOrder(curDay,arr);
+      }
+      setDayDragState({draggingId:null,overIndex:null});
+      window.removeEventListener('pointermove',onMove);
+      window.removeEventListener('pointerup',onUp);
+    };
+    window.addEventListener('pointermove',onMove,{passive:true});
+    window.addEventListener('pointerup',onUp);
+  },[]);
+
+  const allDailyTasks=tasks.filter(t=>t.recurrence==='daily');
+
+  // ── DAY VIEW ──────────────────────────────────────────────────────
+  const renderDay=()=>{
+    const d=parseDate(currentDay),isToday=currentDay===todayStr();
+    const greeting=getGreeting();
+    const {draggingId,overIndex}=dayDragState;
+    let displayTasks=[...getOrderedDayTasks(currentDay)];
+    if(draggingId!==null&&overIndex!==null){
+      const fi=displayTasks.findIndex(t=>t.id===draggingId);
+      if(fi!==-1&&fi!==overIndex){
+        const arr=[...displayTasks];
+        const [mv]=arr.splice(fi,1);
+        arr.splice(overIndex,0,mv);
+        displayTasks=arr;
+      }
+    }
+    return(
+      <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 18px 12px",position:"sticky",top:0,zIndex:10,background:"rgba(242,245,252,0.95)",backdropFilter:"blur(8px)"}}>
+          <button className="pill-btn" onClick={()=>setView("week")} style={{background:`linear-gradient(135deg,${NAVY},${NAVY2})`,border:"none",borderRadius:"100px",color:"#fff",padding:"9px 16px",cursor:"pointer",fontSize:"13px",fontWeight:"700",boxShadow:`0 4px 0 rgba(0,0,0,0.2),0 6px 16px rgba(27,58,107,0.35)`,display:"flex",alignItems:"center",gap:"6px"}}>📅 See Week</button>
+          <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
+            <button onClick={()=>setShowRoutines(true)} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"32px",height:"32px",borderRadius:"50%",cursor:"pointer",fontSize:"14px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.08)"}}>🔁</button>
+            <button onClick={()=>setShowLists(true)} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"32px",height:"32px",borderRadius:"50%",cursor:"pointer",fontSize:"14px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.08)"}}>📋</button>
+            <button onClick={()=>setShowCatManager(true)} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"32px",height:"32px",borderRadius:"50%",cursor:"pointer",fontSize:"15px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.08)"}}>⚙️</button>
           </div>
-
-          <div style={{ display:"flex", alignItems:"center", gap:"4px" }}>
-            <button className="nav-btn" onClick={() => setCurrentDay(fmt(addDays(parseDate(currentDay), -1)))} style={{ background:"#fff", border:`1.5px solid #E0E6F0`, color:NAVY, width:"32px", height:"32px", borderRadius:"50%", cursor:"pointer", fontSize:"16px", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 6px rgba(0,0,0,0.08)" }}>‹</button>
-            <button onClick={() => setCurrentDay(todayStr())} style={{ background:"none", border:"none", color:NAVY, fontSize:"12px", fontWeight:"700", cursor:"pointer", padding:"0 6px", letterSpacing:"0.05em", opacity: isToday ? 0.4 : 1 }}>TODAY</button>
-            <button className="nav-btn" onClick={() => setCurrentDay(fmt(addDays(parseDate(currentDay), 1)))} style={{ background:"#fff", border:`1.5px solid #E0E6F0`, color:NAVY, width:"32px", height:"32px", borderRadius:"50%", cursor:"pointer", fontSize:"16px", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 6px rgba(0,0,0,0.08)" }}>›</button>
+          <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
+            <button className="nav-btn" onClick={()=>setCurrentDay(fmt(addDays(parseDate(currentDay),-1)))} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"32px",height:"32px",borderRadius:"50%",cursor:"pointer",fontSize:"16px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.08)"}}>‹</button>
+            <button onClick={()=>setCurrentDay(todayStr())} style={{background:"none",border:"none",color:NAVY,fontSize:"12px",fontWeight:"700",cursor:"pointer",padding:"0 6px",letterSpacing:"0.05em",opacity:isToday?0.4:1}}>TODAY</button>
+            <button className="nav-btn" onClick={()=>setCurrentDay(fmt(addDays(parseDate(currentDay),1)))} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"32px",height:"32px",borderRadius:"50%",cursor:"pointer",fontSize:"16px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.08)"}}>›</button>
           </div>
         </div>
-
-        {/* Date hero */}
-        <div style={{ padding:"8px 22px 20px", animation:"fadeIn 0.3s ease" }}>
-          <div style={{ fontSize:"13px", color:"#7A90BB", letterSpacing:"0.15em", fontWeight:"600", marginBottom:"2px" }}>
-            {greeting.icon} {DAY_SHORT[d.getDay()]}
-          </div>
-          <div style={{ display:"flex", alignItems:"baseline", gap:"10px" }}>
-            <div style={{ fontSize:"72px", fontWeight:"700", color: isToday ? NAVY : "#2A3A5A", lineHeight:1, letterSpacing:"-2px" }}>{d.getDate()}</div>
+        <div style={{padding:"8px 22px 20px",animation:"fadeIn 0.3s ease"}}>
+          <div style={{fontSize:"13px",color:"#7A90BB",letterSpacing:"0.15em",fontWeight:"600",marginBottom:"2px"}}>{greeting.icon} {DAY_SHORT[d.getDay()]}</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:"10px"}}>
+            <div style={{fontSize:"72px",fontWeight:"700",color:isToday?NAVY:"#2A3A5A",lineHeight:1,letterSpacing:"-2px"}}>{d.getDate()}</div>
             <div>
-              <div style={{ fontSize:"22px", fontWeight:"600", color:"#2A3A5A", lineHeight:1.1 }}>{MONTH_NAMES[d.getMonth()]}</div>
-              <div style={{ fontSize:"15px", color:"#AAB8D0", fontWeight:"500" }}>{d.getFullYear()}</div>
+              <div style={{fontSize:"22px",fontWeight:"600",color:"#2A3A5A",lineHeight:1.1}}>{MONTH_NAMES[d.getMonth()]}</div>
+              <div style={{fontSize:"15px",color:"#AAB8D0",fontWeight:"500"}}>{d.getFullYear()}</div>
             </div>
           </div>
-          {isToday && <div style={{ fontSize:"13px", color:"#7A90BB", marginTop:"4px", fontStyle:"italic" }}>{greeting.text} 👋</div>}
+          {isToday&&<div style={{fontSize:"13px",color:"#7A90BB",marginTop:"4px",fontStyle:"italic"}}>{greeting.text} 👋</div>}
         </div>
-
-        <div style={{ height:"2px", background:`linear-gradient(90deg, ${NAVY}33, transparent)`, margin:"0 22px 20px" }}/>
-
-        {/* Tasks */}
-        <div style={{ padding:"0 18px", display:"flex", flexDirection:"column", gap:"12px", flex:1 }}>
-          {dayTasks.length === 0 && (
-            <div style={{ textAlign:"center", padding:"48px 20px", animation:"fadeIn 0.4s ease" }}>
-              <div style={{ fontSize:"48px", marginBottom:"12px" }}>🗒️</div>
-              <div style={{ fontSize:"16px", color:"#AAB8D0", fontWeight:"500" }}>Nothing scheduled</div>
-              <div style={{ fontSize:"13px", color:"#C5D0E0", marginTop:"4px" }}>Tap + to add a task</div>
+        <div style={{height:"2px",background:`linear-gradient(90deg,${NAVY}33,transparent)`,margin:"0 22px 20px"}}/>
+        <div style={{padding:"0 18px",display:"flex",flexDirection:"column",gap:"12px",flex:1}}>
+          {displayTasks.length===0&&(
+            <div style={{textAlign:"center",padding:"48px 20px",animation:"fadeIn 0.4s ease"}}>
+              <div style={{fontSize:"48px",marginBottom:"12px"}}>🗒️</div>
+              <div style={{fontSize:"16px",color:"#AAB8D0",fontWeight:"500"}}>Nothing scheduled</div>
+              <div style={{fontSize:"13px",color:"#C5D0E0",marginTop:"4px"}}>Tap + to add a task</div>
             </div>
           )}
-          {dayTasks.map((task, i) => (
+          {displayTasks.map((task,i)=>(
             <DayTaskCard key={task.id} task={task} index={i} dateStr={currentDay}
               isCompleted={isCompleted(task,currentDay)} onDone={toggleDone}
-              onDelete={deleteTask} onEdit={openEdit} categories={categories}/>
+              onDelete={deleteTask} onEdit={openEdit}
+              onOpenRoutine={(t)=>setRoutineTask(t)}
+              categories={categories}
+              isDragging={dayDragState.draggingId===task.id}
+              dragOver={dayDragState.draggingId!==null&&dayDragState.draggingId!==task.id&&dayDragState.overIndex===i}
+              onPointerDown={(e)=>handlePointerDown(e,task.id)}
+              subtasks={subtasksMap[task.id]||[]}
+            />
           ))}
         </div>
-
-        <div style={{ height:"90px" }} />
-        <div style={{ position:"fixed", bottom:"max(24px, env(safe-area-inset-bottom, 24px))", right:"20px", zIndex:20 }}>
-          <button onClick={() => openAdd(currentDay)} style={{
-            background:`linear-gradient(135deg, ${NAVY}, ${NAVY2})`, border:"none", borderRadius:"100px",
-            color:"#fff", padding:"14px 24px", cursor:"pointer", fontSize:"16px", fontWeight:"700",
-            boxShadow:`0 6px 0 rgba(0,0,0,0.22), 0 10px 28px rgba(27,58,107,0.35)`,
-            display:"flex", alignItems:"center", gap:"8px", letterSpacing:"0.02em",
-            transition:"transform 0.12s, box-shadow 0.12s"
-          }}>＋ Add Task</button>
+        <div style={{height:"90px"}}/>
+        <div style={{position:"fixed",bottom:"max(24px,env(safe-area-inset-bottom,24px))",right:"20px",zIndex:20}}>
+          <button onClick={()=>openAdd(currentDay)} style={{background:`linear-gradient(135deg,${NAVY},${NAVY2})`,border:"none",borderRadius:"100px",color:"#fff",padding:"14px 24px",cursor:"pointer",fontSize:"16px",fontWeight:"700",boxShadow:`0 6px 0 rgba(0,0,0,0.22),0 10px 28px rgba(27,58,107,0.35)`,display:"flex",alignItems:"center",gap:"8px"}}>＋ Add Task</button>
         </div>
       </div>
     );
   };
 
-  // ── WEEK VIEW ──
-  const renderWeek = () => {
-    const weekDays = Array.from({length:5}, (_,i) => addDays(weekStart, i));
-    const weekRangeLabel = `${weekDays[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})} — ${weekDays[4].toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;
-
-    return (
-      <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 16px 10px", position:"sticky", top:0, zIndex:10, background:"rgba(242,245,252,0.95)", backdropFilter:"blur(8px)", borderBottom:"1px solid #E4EAF5" }}>
-          <button className="pill-btn" onClick={() => { setCurrentDay(todayStr()); setView("day"); }} style={{ background:"#fff", border:`2px solid ${NAVY}`, borderRadius:"100px", color:NAVY, padding:"7px 14px", cursor:"pointer", fontSize:"12px", fontWeight:"700", boxShadow:"0 2px 8px rgba(27,58,107,0.12)", letterSpacing:"0.02em" }}>← Day</button>
-          <div style={{ textAlign:"center" }}>
-            <div style={{ fontSize:"10px", color:"#AAB8D0", letterSpacing:"0.12em", fontWeight:"600" }}>WEEK</div>
-            <div style={{ fontSize:"12px", color:NAVY, fontWeight:"700" }}>{weekRangeLabel}</div>
+  // ── WEEK VIEW ─────────────────────────────────────────────────────
+  const renderWeek=()=>{
+    const weekDays=Array.from({length:5},(_,i)=>addDays(weekStart,i));
+    const wrl=`${weekDays[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})} — ${weekDays[4].toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;
+    return(
+      <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px 10px",position:"sticky",top:0,zIndex:10,background:"rgba(242,245,252,0.95)",backdropFilter:"blur(8px)",borderBottom:"1px solid #E4EAF5"}}>
+          <button className="pill-btn" onClick={()=>{setCurrentDay(todayStr());setView("day");}} style={{background:"#fff",border:`2px solid ${NAVY}`,borderRadius:"100px",color:NAVY,padding:"7px 14px",cursor:"pointer",fontSize:"12px",fontWeight:"700",boxShadow:"0 2px 8px rgba(27,58,107,0.12)"}}>← Day</button>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:"10px",color:"#AAB8D0",letterSpacing:"0.12em",fontWeight:"600"}}>WEEK</div>
+            <div style={{fontSize:"12px",color:NAVY,fontWeight:"700"}}>{wrl}</div>
           </div>
-          <div style={{ display:"flex", gap:"5px", alignItems:"center" }}>
-            <button className="nav-btn" onClick={() => setWeekStart(prev => addDays(prev, -7))} style={{ background:"#fff", border:`1.5px solid #E0E6F0`, color:NAVY, width:"28px", height:"28px", borderRadius:"50%", cursor:"pointer", fontSize:"14px", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 5px rgba(0,0,0,0.07)" }}>‹</button>
-            <button className="pill-btn" onClick={() => { setMonthRef(new Date(weekStart.getFullYear(), weekStart.getMonth(), 1)); setView("month"); }} style={{ background:`linear-gradient(135deg, ${NAVY}, ${NAVY2})`, border:"none", borderRadius:"100px", color:"#fff", padding:"6px 12px", cursor:"pointer", fontSize:"11px", fontWeight:"700", boxShadow:`0 3px 0 rgba(0,0,0,0.18), 0 5px 12px rgba(27,58,107,0.3)` }}>Month ›</button>
-            <button className="nav-btn" onClick={() => setWeekStart(prev => addDays(prev, 7))} style={{ background:"#fff", border:`1.5px solid #E0E6F0`, color:NAVY, width:"28px", height:"28px", borderRadius:"50%", cursor:"pointer", fontSize:"14px", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 5px rgba(0,0,0,0.07)" }}>›</button>
+          <div style={{display:"flex",gap:"5px",alignItems:"center"}}>
+            <button className="nav-btn" onClick={()=>setWeekStart(prev=>addDays(prev,-7))} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"28px",height:"28px",borderRadius:"50%",cursor:"pointer",fontSize:"14px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 5px rgba(0,0,0,0.07)"}}>‹</button>
+            <button className="pill-btn" onClick={()=>{setMonthRef(new Date(weekStart.getFullYear(),weekStart.getMonth(),1));setView("month");}} style={{background:`linear-gradient(135deg,${NAVY},${NAVY2})`,border:"none",borderRadius:"100px",color:"#fff",padding:"6px 12px",cursor:"pointer",fontSize:"11px",fontWeight:"700",boxShadow:`0 3px 0 rgba(0,0,0,0.18),0 5px 12px rgba(27,58,107,0.3)`}}>Month ›</button>
+            <button className="nav-btn" onClick={()=>setWeekStart(prev=>addDays(prev,7))} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"28px",height:"28px",borderRadius:"50%",cursor:"pointer",fontSize:"14px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 5px rgba(0,0,0,0.07)"}}>›</button>
           </div>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", flex:1, gap:"1px", background:"#DDE5F2" }}>
-          {weekDays.map((day, i) => {
-            const dateStr = fmt(day);
-            const isToday = dateStr === todayStr();
-            const isDragTarget = dragOverDay === dateStr;
-            const dayTasks = getDayTasks(dateStr);
-            return (
-              <div key={i}
-                onDrop={e => onDrop(e, dateStr)}
-                onDragOver={e => { e.preventDefault(); setDragOverDay(dateStr); }}
-                onDragLeave={() => setDragOverDay(null)}
-                style={{ background: isDragTarget ? "#E8F0FF" : isToday ? "#EDF2FF" : BG, display:"flex", flexDirection:"column", minHeight:"calc(100vh - 73px)" }}>
-                <div onClick={() => { setCurrentDay(dateStr); setView("day"); }}
-                  style={{ padding:"12px 8px 8px", borderBottom: isToday ? `2px solid ${NAVY}` : "2px solid transparent", cursor:"pointer", textAlign:"center" }}>
-                  <div style={{ fontSize:"8px", color: isToday ? NAVY : "#AAB8D0", letterSpacing:"0.15em", fontWeight:"700", marginBottom:"2px" }}>{DAY_SHORT[day.getDay()]}</div>
-                  <div style={{ fontSize:"20px", fontWeight:"700", color: isToday ? NAVY : "#2A3A5A", lineHeight:1 }}>{day.getDate()}</div>
-                  {isToday && <div style={{ width:"5px", height:"5px", borderRadius:"50%", background:NAVY, margin:"4px auto 0" }}/>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",flex:1,gap:"1px",background:"#DDE5F2"}}>
+          {weekDays.map((day,i)=>{
+            const dateStr=fmt(day),isToday=dateStr===todayStr(),isDragTarget=weekDragOverDay===dateStr;
+            const dayTasks=getDayTasks(dateStr);
+            return(
+              <div key={i} onDrop={e=>onWeekDrop(e,dateStr)} onDragOver={e=>{e.preventDefault();setWeekDragOverDay(dateStr);}} onDragLeave={()=>setWeekDragOverDay(null)}
+                style={{background:isDragTarget?"#E8F0FF":isToday?"#EDF2FF":BG,display:"flex",flexDirection:"column",minHeight:"calc(100vh - 73px)"}}>
+                <div onClick={()=>{setCurrentDay(dateStr);setView("day");}} style={{padding:"12px 8px 8px",borderBottom:isToday?`2px solid ${NAVY}`:"2px solid transparent",cursor:"pointer",textAlign:"center"}}>
+                  <div style={{fontSize:"8px",color:isToday?NAVY:"#AAB8D0",letterSpacing:"0.15em",fontWeight:"700",marginBottom:"2px"}}>{DAY_SHORT[day.getDay()]}</div>
+                  <div style={{fontSize:"20px",fontWeight:"700",color:isToday?NAVY:"#2A3A5A",lineHeight:1}}>{day.getDate()}</div>
+                  {isToday&&<div style={{width:"5px",height:"5px",borderRadius:"50%",background:NAVY,margin:"4px auto 0"}}/>}
                 </div>
-                <div style={{ padding:"6px 5px 8px", display:"flex", flexDirection:"column", gap:"5px", flex:1 }}>
-                  {dayTasks.map(task => (
+                <div style={{padding:"6px 5px 8px",display:"flex",flexDirection:"column",gap:"5px",flex:1}}>
+                  {dayTasks.map(task=>(
                     <WeekTaskCard key={task.id} task={task} dateStr={dateStr} isCompleted={isCompleted(task,dateStr)}
                       onDone={toggleDone} onDelete={deleteTask}
-                      onDragStart={onDragStart} onDragEnd={onDragEnd} isDragging={draggedId === task.id} categories={categories}/>
+                      onDragStart={onWeekDragStart} onDragEnd={onWeekDragEnd} isDragging={weekDragId===task.id} categories={categories}/>
                   ))}
-                  {isDragTarget && (
-                    <div style={{ border:`2px dashed ${NAVY}55`, borderRadius:"8px", height:"36px", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      <span style={{ fontSize:"8px", color:NAVY+"88" }}>drop</span>
-                    </div>
-                  )}
-                  <button onClick={() => openAdd(dateStr)} style={{ background:"none", border:`1.5px dashed #C0CCDF`, borderRadius:"8px", color:"#B0BCCE", cursor:"pointer", fontSize:"16px", padding:"5px", marginTop:"auto", transition:"all 0.15s" }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor=NAVY; e.currentTarget.style.color=NAVY; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor="#C0CCDF"; e.currentTarget.style.color="#B0BCCE"; }}>+</button>
+                  {isDragTarget&&<div style={{border:`2px dashed ${NAVY}55`,borderRadius:"8px",height:"36px",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:"8px",color:NAVY+"88"}}>drop</span></div>}
+                  <button onClick={()=>openAdd(dateStr)} style={{background:"none",border:"1.5px dashed #C0CCDF",borderRadius:"8px",color:"#B0BCCE",cursor:"pointer",fontSize:"16px",padding:"5px",marginTop:"auto",transition:"all 0.15s"}}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor=NAVY;e.currentTarget.style.color=NAVY;}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor="#C0CCDF";e.currentTarget.style.color="#B0BCCE";}}>+</button>
                 </div>
               </div>
             );
@@ -962,49 +946,42 @@ function TaskCalendar() {
     );
   };
 
-  // ── MONTH VIEW ──
-  const renderMonth = () => {
-    const firstDay = monthRef.getDay() || 7;
-    const monthDays = Array.from({length:42}, (_,i) => {
-      const d = new Date(monthRef);
-      d.setDate(1 - (firstDay - 1) + i);
-      return d;
-    });
-    const monthLabel = `${MONTH_NAMES[monthRef.getMonth()]} ${monthRef.getFullYear()}`;
-
-    return (
-      <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 16px 12px", position:"sticky", top:0, zIndex:10, background:"rgba(242,245,252,0.95)", backdropFilter:"blur(8px)", borderBottom:"1px solid #E4EAF5" }}>
-          <button className="pill-btn" onClick={() => setView("week")} style={{ background:"#fff", border:`2px solid ${NAVY}`, borderRadius:"100px", color:NAVY, padding:"7px 14px", cursor:"pointer", fontSize:"12px", fontWeight:"700", boxShadow:"0 2px 8px rgba(27,58,107,0.12)" }}>← Week</button>
-          <div style={{ fontSize:"15px", color:NAVY, fontWeight:"700" }}>{monthLabel}</div>
-          <div style={{ display:"flex", gap:"5px" }}>
-            <button className="nav-btn" onClick={() => setMonthRef(new Date(monthRef.getFullYear(), monthRef.getMonth()-1, 1))} style={{ background:"#fff", border:`1.5px solid #E0E6F0`, color:NAVY, width:"30px", height:"30px", borderRadius:"50%", cursor:"pointer", fontSize:"15px", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 5px rgba(0,0,0,0.07)" }}>‹</button>
-            <button className="nav-btn" onClick={() => setMonthRef(new Date(monthRef.getFullYear(), monthRef.getMonth()+1, 1))} style={{ background:"#fff", border:`1.5px solid #E0E6F0`, color:NAVY, width:"30px", height:"30px", borderRadius:"50%", cursor:"pointer", fontSize:"15px", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 5px rgba(0,0,0,0.07)" }}>›</button>
+  // ── MONTH VIEW ────────────────────────────────────────────────────
+  const renderMonth=()=>{
+    const firstDay=monthRef.getDay()||7;
+    const monthDays=Array.from({length:42},(_,i)=>{const d=new Date(monthRef);d.setDate(1-(firstDay-1)+i);return d;});
+    const ml=`${MONTH_NAMES[monthRef.getMonth()]} ${monthRef.getFullYear()}`;
+    return(
+      <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px 12px",position:"sticky",top:0,zIndex:10,background:"rgba(242,245,252,0.95)",backdropFilter:"blur(8px)",borderBottom:"1px solid #E4EAF5"}}>
+          <button className="pill-btn" onClick={()=>setView("week")} style={{background:"#fff",border:`2px solid ${NAVY}`,borderRadius:"100px",color:NAVY,padding:"7px 14px",cursor:"pointer",fontSize:"12px",fontWeight:"700",boxShadow:"0 2px 8px rgba(27,58,107,0.12)"}}>← Week</button>
+          <div style={{fontSize:"15px",color:NAVY,fontWeight:"700"}}>{ml}</div>
+          <div style={{display:"flex",gap:"5px"}}>
+            <button className="nav-btn" onClick={()=>setMonthRef(new Date(monthRef.getFullYear(),monthRef.getMonth()-1,1))} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"30px",height:"30px",borderRadius:"50%",cursor:"pointer",fontSize:"15px",display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+            <button className="nav-btn" onClick={()=>setMonthRef(new Date(monthRef.getFullYear(),monthRef.getMonth()+1,1))} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"30px",height:"30px",borderRadius:"50%",cursor:"pointer",fontSize:"15px",display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
           </div>
         </div>
-        <div style={{ padding:"12px 14px" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:"3px", marginBottom:"8px" }}>
-            {["M","T","W","T","F","S","S"].map((d,i) => (
-              <div key={i} style={{ textAlign:"center", fontSize:"10px", color: i < 5 ? NAVY : "#C0CCDF", fontWeight:"700", letterSpacing:"0.1em", padding:"4px" }}>{d}</div>
+        <div style={{padding:"12px 14px"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"3px",marginBottom:"8px"}}>
+            {["M","T","W","T","F","S","S"].map((dn,i)=>(
+              <div key={i} style={{textAlign:"center",fontSize:"10px",color:i<5?NAVY:"#C0CCDF",fontWeight:"700",letterSpacing:"0.1em",padding:"4px"}}>{dn}</div>
             ))}
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:"3px" }}>
-            {monthDays.map((day, i) => {
-              const dateStr = fmt(day);
-              const isToday = dateStr === todayStr();
-              const inMonth = day.getMonth() === monthRef.getMonth();
-              const dayTasks = tasks.filter(t => t.date === dateStr);
-              return (
-                <div key={i} onClick={() => { setCurrentDay(dateStr); setWeekStart(getWeekStart(day)); setView("day"); }}
-                  style={{ background: isToday ? NAVY : inMonth ? "#fff" : "transparent", borderRadius:"10px", padding:"7px 5px", minHeight:"58px", cursor:"pointer", border: isToday ? "none" : "1.5px solid #E8EEF8", opacity: inMonth ? 1 : 0.25, boxShadow: isToday ? `0 4px 0 rgba(0,0,0,0.2), 0 6px 14px rgba(27,58,107,0.3)` : inMonth ? "0 2px 5px rgba(0,0,0,0.04)" : "none", transition:"transform 0.1s" }}
-                  onMouseEnter={e => { if(inMonth) e.currentTarget.style.transform="translateY(-1px)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform="none"; }}>
-                  <div style={{ fontSize:"12px", color: isToday ? "#fff" : "#2A3A5A", fontWeight: isToday ? "700" : "500", marginBottom:"4px" }}>{day.getDate()}</div>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:"2px" }}>
-                    {dayTasks.slice(0,3).map(t => (
-                      <div key={t.id} style={{ width:"6px", height:"6px", borderRadius:"50%", background: isToday ? "rgba(255,255,255,0.7)" : t.color, opacity: t.completed ? 0.35 : 1, boxShadow:`0 1px 3px ${t.color}66` }}/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"3px"}}>
+            {monthDays.map((day,i)=>{
+              const dateStr=fmt(day),isToday=dateStr===todayStr(),inMonth=day.getMonth()===monthRef.getMonth();
+              const dayTasks=tasks.filter(t=>t.date===dateStr);
+              return(
+                <div key={i} onClick={()=>{setCurrentDay(dateStr);setWeekStart(getWeekStart(day));setView("day");}}
+                  style={{background:isToday?NAVY:inMonth?"#fff":"transparent",borderRadius:"10px",padding:"7px 5px",minHeight:"58px",cursor:"pointer",border:isToday?"none":"1.5px solid #E8EEF8",opacity:inMonth?1:0.25,boxShadow:isToday?`0 4px 0 rgba(0,0,0,0.2),0 6px 14px rgba(27,58,107,0.3)`:inMonth?"0 2px 5px rgba(0,0,0,0.04)":"none",transition:"transform 0.1s"}}
+                  onMouseEnter={e=>{if(inMonth)e.currentTarget.style.transform="translateY(-1px)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.transform="none";}}>
+                  <div style={{fontSize:"12px",color:isToday?"#fff":"#2A3A5A",fontWeight:isToday?"700":"500",marginBottom:"4px"}}>{day.getDate()}</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:"2px"}}>
+                    {dayTasks.slice(0,3).map(t=>(
+                      <div key={t.id} style={{width:"6px",height:"6px",borderRadius:"50%",background:isToday?"rgba(255,255,255,0.7)":t.color,opacity:t.completed?0.35:1,boxShadow:`0 1px 3px ${t.color}66`}}/>
                     ))}
-                    {dayTasks.length > 3 && <div style={{ fontSize:"7px", color: isToday ? "rgba(255,255,255,0.7)" : "#AAB8D0" }}>+{dayTasks.length-3}</div>}
+                    {dayTasks.length>3&&<div style={{fontSize:"7px",color:isToday?"rgba(255,255,255,0.7)":"#AAB8D0"}}>+{dayTasks.length-3}</div>}
                   </div>
                 </div>
               );
@@ -1015,42 +992,29 @@ function TaskCalendar() {
     );
   };
 
-  return (
-    <div style={{ fontFamily:"'Finlandica', Georgia, serif", background:BG, minHeight:"100vh", position:"relative", overflowX:"hidden" }}>
-      <div style={{ position:"fixed", top:"-80px", right:"-60px", width:"200px", height:"200px", borderRadius:"50%", background:`radial-gradient(circle, ${NAVY}18, transparent)`, pointerEvents:"none", zIndex:0 }}/>
-      <div style={{ position:"fixed", bottom:"-60px", left:"-40px", width:"160px", height:"160px", borderRadius:"50%", background:"radial-gradient(circle, #2A9D8F18, transparent)", pointerEvents:"none", zIndex:0 }}/>
-      <div style={{ position:"relative", zIndex:1 }}>
-        {view === "day" && renderDay()}
-        {view === "week" && renderWeek()}
-        {view === "month" && renderMonth()}
+  return(
+    <div style={{fontFamily:"'Finlandica',Georgia,serif",background:BG,minHeight:"100vh",position:"relative",overflowX:"hidden"}}>
+      <div style={{position:"fixed",top:"-80px",right:"-60px",width:"200px",height:"200px",borderRadius:"50%",background:`radial-gradient(circle,${NAVY}18,transparent)`,pointerEvents:"none",zIndex:0}}/>
+      <div style={{position:"fixed",bottom:"-60px",left:"-40px",width:"160px",height:"160px",borderRadius:"50%",background:"radial-gradient(circle,#2A9D8F18,transparent)",pointerEvents:"none",zIndex:0}}/>
+      <div style={{position:"relative",zIndex:1}}>
+        {view==="day"&&renderDay()}
+        {view==="week"&&renderWeek()}
+        {view==="month"&&renderMonth()}
       </div>
-
-      {showModal && (
-        <TaskModal
-          selectedDay={modalDay}
-          onClose={() => { setShowModal(false); setEditingTask(null); }}
-          onSave={handleModalSave}
-          getNextColor={getNextColor}
-          categories={categories}
-          editTask={editingTask}
-        />
-      )}
-      {showCatManager && (
-        <CategoryManager categories={categories} onClose={() => setShowCatManager(false)} onSave={handleSaveCategories}/>
-      )}
-      {showLists && (
-        <ListsPanel onClose={() => setShowLists(false)} />
-      )}
-
-      {nudgeBanner && (
-        <div style={{ position:"fixed", top:"env(safe-area-inset-top, 32px)", left:"16px", right:"16px", zIndex:300, animation:"slideUp 0.3s ease" }}>
-          <div style={{ background: nudgeBanner.color, borderRadius:"18px", padding:"18px 20px", boxShadow:"0 8px 0 rgba(0,0,0,0.18), 0 12px 32px rgba(0,0,0,0.2)", display:"flex", alignItems:"center", justifyContent:"space-between", position:"relative", overflow:"hidden" }}>
-            <div style={{ position:"absolute", top:0, left:0, right:0, height:"50%", background:"linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)", borderRadius:"18px 18px 0 0", pointerEvents:"none" }}/>
+      {showModal&&<TaskModal selectedDay={modalDay} onClose={()=>{setShowModal(false);setEditingTask(null);}} onSave={handleModalSave} getNextColor={getNextColor} categories={categories} editTask={editingTask}/>}
+      {showCatManager&&<CategoryManager categories={categories} onClose={()=>setShowCatManager(false)} onSave={handleSaveCategories}/>}
+      {showLists&&<ListsPanel onClose={()=>setShowLists(false)}/>}
+      {showRoutines&&<RoutinesPanel dailyTasks={allDailyTasks} subtasksMap={subtasksMap} onClose={()=>setShowRoutines(false)} onOpenRoutine={(task)=>setRoutineTask(task)}/>}
+      {routineTask&&<RoutineSheet task={routineTask} subtasks={subtasksMap[routineTask.id]||[]} onClose={()=>setRoutineTask(null)} onSaveSubtasks={handleSaveSubtasks}/>}
+      {nudgeBanner&&(
+        <div style={{position:"fixed",top:"env(safe-area-inset-top,32px)",left:"16px",right:"16px",zIndex:500,animation:"slideUp 0.3s ease"}}>
+          <div style={{background:nudgeBanner.color,borderRadius:"18px",padding:"18px 20px",boxShadow:"0 8px 0 rgba(0,0,0,0.18),0 12px 32px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"space-between",position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",top:0,left:0,right:0,height:"50%",background:"linear-gradient(180deg,rgba(255,255,255,0.22) 0%,transparent 100%)",borderRadius:"18px 18px 0 0",pointerEvents:"none"}}/>
             <div>
-              <div style={{ fontSize:"11px", fontWeight:"700", color:"rgba(0,0,0,0.5)", letterSpacing:"0.1em", marginBottom:"3px" }}>🔔 NUDGE</div>
-              <div style={{ fontSize:"17px", fontWeight:"700", color:"#fff", textShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>{nudgeBanner.title}</div>
+              <div style={{fontSize:"11px",fontWeight:"700",color:"rgba(0,0,0,0.5)",letterSpacing:"0.1em",marginBottom:"3px"}}>🔔 NUDGE</div>
+              <div style={{fontSize:"17px",fontWeight:"700",color:"#fff",textShadow:"0 1px 3px rgba(0,0,0,0.2)"}}>{nudgeBanner.title}</div>
             </div>
-            <button onClick={() => setNudgeBanner(null)} style={{ background:"rgba(0,0,0,0.15)", border:"none", borderRadius:"50%", color:"#fff", width:"32px", height:"32px", cursor:"pointer", fontSize:"16px", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit", flexShrink:0 }}>✕</button>
+            <button onClick={()=>setNudgeBanner(null)} style={{background:"rgba(0,0,0,0.15)",border:"none",borderRadius:"50%",color:"#fff",width:"32px",height:"32px",cursor:"pointer",fontSize:"16px",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",flexShrink:0}}>✕</button>
           </div>
         </div>
       )}
