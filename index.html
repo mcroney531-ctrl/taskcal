@@ -8,15 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script>
-  const firebaseConfig = {
-    databaseURL: "https://taskcal-834a4-default-rtdb.firebaseio.com"
-  };
-  firebase.initializeApp(firebaseConfig);
-  window.db = firebase.database();
-</script>
+
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   body { background: #F2F5FC; font-family: 'Finlandica', Georgia, serif; min-height: 100vh; padding-top: env(safe-area-inset-top, 32px); }
@@ -133,29 +125,46 @@ const getAutoIcon = (title, categoryId) => {
 };
 
 // Firebase helpers
+// ── Firebase REST API helpers (no SDK needed) ──────────────────────
+const FB = "https://taskcal-834a4-default-rtdb.firebaseio.com";
+
 const fbSave = (tasks) => {
-  // Store as object keyed by task ID — avoids Firebase array conversion issues
-  if (!tasks || tasks.length === 0) {
-    db.ref("tasks").set(null);
-    return;
-  }
+  if (!tasks) return;
   const obj = {};
   tasks.forEach(t => { if (t && t.id) obj[t.id] = t; });
-  db.ref("tasks").set(obj);
+  const body = Object.keys(obj).length ? JSON.stringify(obj) : 'null';
+  fetch(`${FB}/tasks.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body })
+    .catch(e => console.warn('fbSave failed:', e));
+  // localStorage backup in case network fails
+  try { localStorage.setItem('taskcal-tasks-backup', JSON.stringify(tasks)); } catch(e) {}
 };
-const fbLoad = (callback) => {
-  db.ref("tasks").once("value", snap => {
-    callback(snap.val());
-  });
+
+const fbLoad = async () => {
+  try {
+    const res = await fetch(`${FB}/tasks.json`);
+    const data = await res.json();
+    if (data && typeof data === 'object') return Object.values(data).filter(Boolean);
+  } catch(e) { console.warn('fbLoad failed:', e); }
+  // Fallback to localStorage backup
+  try {
+    const backup = localStorage.getItem('taskcal-tasks-backup');
+    if (backup) return JSON.parse(backup);
+  } catch(e) {}
+  return null;
 };
-const fbListen = (callback) => {
-  db.ref("tasks").on("value", snap => {
-    callback(snap.val());
-  });
+
+const fbSaveCategories = (cats) => {
+  fetch(`${FB}/categories.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cats) })
+    .catch(e => console.warn('fbSaveCategories failed:', e));
 };
-const fbSaveCategories = (cats) => db.ref("categories").set(cats);
-const fbListenCategories = (callback) => {
-  db.ref("categories").once("value", snap => callback(snap.val()));
+
+const fbLoadCategories = async () => {
+  try {
+    const res = await fetch(`${FB}/categories.json`);
+    const data = await res.json();
+    if (data) return Array.isArray(data) ? data : Object.values(data).filter(Boolean);
+  } catch(e) { console.warn('fbLoadCategories failed:', e); }
+  return null;
 };
 
 // ─── TASK CARD (Day View) ──────────────────────────────────────────────
@@ -474,25 +483,26 @@ function TaskCalendar() {
   const nudgeTimers = React.useRef({});
 
   React.useEffect(() => {
-    fbListenCategories(data => {
-      if (data) {
-        const arr = Array.isArray(data) ? data : Object.values(data);
-        setCategories(arr.filter(Boolean));
+    (async () => {
+      // Load categories
+      const catData = await fbLoadCategories();
+      if (catData && catData.length) {
+        setCategories(catData.filter(Boolean));
       } else {
         fbSaveCategories(DEFAULT_CATEGORIES);
       }
-    });
-  }, []);
 
-  React.useEffect(() => {
-    fbListen(data => {
-      if (data) {
+      // Load tasks
+      const taskData = await fbLoad();
+      if (taskData && taskData.length) {
         const td = todayStr();
-        let arr = Array.isArray(data) ? data : Object.values(data);
-        arr = arr.filter(t => t && t.id).map(t => (!t.recurrence && !t.completed && t.date < td) ? { ...t, date: td } : t);
+        const arr = taskData.filter(t => t && t.id).map(t =>
+          (!t.recurrence && !t.completed && t.date < td) ? { ...t, date: td } : t
+        );
         setTasks(arr);
+        fbSave(arr); // re-save carry-forward updates
       }
-    });
+    })();
   }, []);
 
   React.useEffect(() => {
