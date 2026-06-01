@@ -23,6 +23,7 @@
   ::-webkit-scrollbar-thumb { background: #1B3A6B55; border-radius: 2px; }
   .drag-handle { cursor: grab; user-select: none; touch-action: none; -webkit-user-select: none; }
   .drag-handle:active { cursor: grabbing; }
+  @keyframes slideInLeft { from { opacity:0; transform:translateX(-100%); } to { opacity:1; transform:translateX(0); } }
 </style>
 </head>
 <body>
@@ -62,8 +63,10 @@ const todayStr = () => fmt(new Date());
 const parseDate = (str) => { const [y,m,d]=str.split("-").map(Number); return new Date(y,m-1,d); };
 const addDays = (date,n) => { const d=new Date(date); d.setDate(d.getDate()+n); return d; };
 const getWeekStart = (date) => {
-  const d=new Date(date), day=d.getDay(), diff=d.getDate()-day+(day===0?-6:1);
-  d.setDate(diff); d.setHours(0,0,0,0); return d;
+  const d=new Date(date), day=d.getDay();
+  // Sunday-start: subtract day-of-week to get to Sunday
+  d.setDate(d.getDate()-day);
+  d.setHours(0,0,0,0); return d;
 };
 const getGreeting = () => {
   const h=new Date().getHours();
@@ -322,36 +325,24 @@ function DayTaskCard({ task, onDone, onDelete, onEdit, onOpenRoutine, index, dat
 }
 
 // ─── WEEK TASK CARD ──────────────────────────────────────────────────
-function WeekTaskCard({ task, onDone, onDelete, onDragStart, onDragEnd, isDragging, dateStr, isCompleted, categories }) {
+function WeekTaskCard({ task, onDone, onDelete, onDragStart, onDragEnd, isDragging, dateStr, isCompleted }) {
   return (
     <div draggable onDragStart={e=>onDragStart(e,task.id)} onDragEnd={onDragEnd}
       style={{
         background:`linear-gradient(145deg,${task.color}F0,${task.color}C0)`,
-        borderRadius:"10px",padding:"8px 9px",
-        boxShadow:isDragging?`0 8px 20px rgba(0,0,0,0.25)`:`0 4px 0 rgba(0,0,0,0.15),0 6px 12px rgba(0,0,0,0.08)`,
+        borderRadius:"8px",padding:"5px 6px",
+        boxShadow:isDragging?`0 6px 16px rgba(0,0,0,0.25)`:`0 3px 0 rgba(0,0,0,0.15),0 4px 8px rgba(0,0,0,0.08)`,
         opacity:isCompleted?0.4:1,cursor:"grab",position:"relative",overflow:"hidden",
         transform:isDragging?"rotate(2deg) scale(1.02)":"none",transition:"box-shadow 0.15s,opacity 0.2s",
       }}>
-      <div style={{position:"absolute",top:0,left:0,right:0,height:"40%",background:"linear-gradient(180deg,rgba(255,255,255,0.18) 0%,transparent 100%)",borderRadius:"10px 10px 0 0",pointerEvents:"none"}}/>
-      {(()=>{
-        const cat=task.categoryId?(categories||[]).find(c=>c.id===task.categoryId):null;
-        const catTitle=cat?cat.title.toUpperCase():null;
-        let label="";
-        if(task.recurrence==='daily'&&catTitle) label=`DAILY: ${catTitle}`;
-        else if(task.recurrence==='daily') label="DAILY";
-        else if(catTitle) label=catTitle;
-        return label?<div style={{fontSize:"7px",fontWeight:"800",color:"rgba(0,0,0,0.4)",letterSpacing:"0.12em",marginBottom:"2px"}}>{label}</div>:null;
-      })()}
-      {task.time&&<div style={{fontSize:"8px",fontWeight:"700",color:"rgba(0,0,0,0.5)",marginBottom:"2px"}}>{task.time}</div>}
-      <div style={{display:"flex",alignItems:"flex-start",gap:"5px"}}>
-        <span style={{fontSize:"13px",lineHeight:1.2,flexShrink:0}}>{task.icon||"📌"}</span>
-        <div style={{fontSize:"10px",color:"#fff",fontWeight:"600",lineHeight:1.3,textDecoration:isCompleted?"line-through":"none",wordBreak:"break-word"}}>
-          {task.recurrence&&<span style={{fontSize:"7px",marginRight:"2px",opacity:0.75}}>🔁</span>}{task.title}
-        </div>
+      <div style={{position:"absolute",top:0,left:0,right:0,height:"40%",background:"linear-gradient(180deg,rgba(255,255,255,0.16) 0%,transparent 100%)",borderRadius:"8px 8px 0 0",pointerEvents:"none"}}/>
+      {task.time&&<div style={{fontSize:"7px",fontWeight:"700",color:"rgba(0,0,0,0.45)",marginBottom:"1px",lineHeight:1}}>{task.time}</div>}
+      <div style={{fontSize:"9px",color:"#fff",fontWeight:"600",lineHeight:1.25,textDecoration:isCompleted?"line-through":"none",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",wordBreak:"break-word"}}>
+        {task.recurrence&&<span style={{fontSize:"7px",marginRight:"2px",opacity:0.7}}>🔁</span>}{task.title}
       </div>
-      <div style={{display:"flex",gap:"3px",marginTop:"5px"}}>
-        <button onClick={()=>onDone(task.id,dateStr)} style={{background:"rgba(255,255,255,0.28)",border:"none",borderRadius:"10px",color:"#fff",cursor:"pointer",fontSize:"7px",padding:"2px 6px",fontFamily:"inherit",fontWeight:"600"}}>{isCompleted?"↩":"✓"}</button>
-        <button onClick={()=>onDelete(task.id)} style={{background:"rgba(0,0,0,0.12)",border:"none",borderRadius:"10px",color:"rgba(255,255,255,0.85)",cursor:"pointer",fontSize:"7px",padding:"2px 6px",fontFamily:"inherit",fontWeight:"600"}}>✕</button>
+      <div style={{display:"flex",gap:"2px",marginTop:"4px"}}>
+        <button onClick={()=>onDone(task.id,dateStr)} style={{background:"rgba(255,255,255,0.28)",border:"none",borderRadius:"8px",color:"#fff",cursor:"pointer",fontSize:"7px",padding:"2px 5px",fontFamily:"inherit",fontWeight:"700",lineHeight:1}}>{isCompleted?"↩":"✓"}</button>
+        <button onClick={()=>onDelete(task.id)} style={{background:"rgba(0,0,0,0.12)",border:"none",borderRadius:"8px",color:"rgba(255,255,255,0.85)",cursor:"pointer",fontSize:"7px",padding:"2px 5px",fontFamily:"inherit",fontWeight:"700",lineHeight:1}}>✕</button>
       </div>
     </div>
   );
@@ -642,6 +633,59 @@ function ListsPanel({ onClose }) {
   );
 }
 
+
+// ─── SIDEBAR ─────────────────────────────────────────────────────────
+function Sidebar({ open, onClose, onRoutines, onLists, onCategories }) {
+  if (!open && !true) return null; // always render for animation
+  return (
+    <>
+      {/* Backdrop */}
+      {open && <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(10,20,50,0.45)",zIndex:350,backdropFilter:"blur(3px)",animation:"fadeIn 0.18s ease"}}/>}
+      {/* Drawer */}
+      <div style={{
+        position:"fixed",top:0,left:0,bottom:0,width:"72vw",maxWidth:"280px",
+        background:"#fff",zIndex:360,
+        boxShadow: open ? "4px 0 40px rgba(27,58,107,0.2)" : "none",
+        transform: open ? "translateX(0)" : "translateX(-105%)",
+        transition:"transform 0.26s cubic-bezier(0.32,0.72,0,1)",
+        display:"flex",flexDirection:"column",
+        paddingTop:"max(32px,env(safe-area-inset-top,32px))",
+      }}>
+        {/* Drawer header */}
+        <div style={{padding:"20px 22px 16px",borderBottom:"1.5px solid #EEF2FA"}}>
+          <div style={{fontSize:"11px",color:"#AAB8D0",fontWeight:"700",letterSpacing:"0.18em",marginBottom:"2px"}}>TASK CALENDAR</div>
+          <div style={{fontSize:"20px",fontWeight:"700",color:NAVY}}>Menu</div>
+        </div>
+        {/* Nav items */}
+        <div style={{flex:1,padding:"12px 14px",display:"flex",flexDirection:"column",gap:"4px"}}>
+          {[
+            {icon:"🔁", label:"Routines", sub:"Daily task steps", action:onRoutines},
+            {icon:"📋", label:"Lists",    sub:"Your saved lists",  action:onLists},
+            {icon:"🏷️", label:"Categories", sub:"Edit task categories", action:onCategories},
+          ].map(item=>(
+            <button key={item.label} onClick={()=>{onClose();item.action();}}
+              style={{display:"flex",alignItems:"center",gap:"14px",background:"none",border:"none",borderRadius:"14px",padding:"12px 14px",cursor:"pointer",textAlign:"left",fontFamily:"inherit",width:"100%",transition:"background 0.1s"}}
+              onMouseEnter={e=>e.currentTarget.style.background="#F4F7FF"}
+              onMouseLeave={e=>e.currentTarget.style.background="none"}>
+              <div style={{width:"40px",height:"40px",borderRadius:"12px",background:"#F0F4FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"20px",flexShrink:0}}>
+                {item.icon}
+              </div>
+              <div>
+                <div style={{fontSize:"15px",color:NAVY,fontWeight:"700"}}>{item.label}</div>
+                <div style={{fontSize:"11px",color:"#AAB8D0",marginTop:"1px"}}>{item.sub}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+        {/* Footer */}
+        <div style={{padding:"16px 22px",paddingBottom:"max(20px,env(safe-area-inset-bottom,20px))",borderTop:"1.5px solid #EEF2FA"}}>
+          <button onClick={onClose} style={{width:"100%",background:"#F4F7FF",border:"2px solid #E0E8FF",color:"#888",padding:"11px",borderRadius:"12px",cursor:"pointer",fontSize:"13px",fontFamily:"inherit",fontWeight:"600"}}>Close</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────
 function TaskCalendar() {
   const [tasks,setTasks]=React.useState([]);
@@ -659,6 +703,7 @@ function TaskCalendar() {
   const [showCatManager,setShowCatManager]=React.useState(false);
   const [showLists,setShowLists]=React.useState(false);
   const [showRoutines,setShowRoutines]=React.useState(false);
+  const [showSidebar,setShowSidebar]=React.useState(false);
   const [routineTask,setRoutineTask]=React.useState(null);
   const [subtasksMap,setSubtasksMap]=React.useState({});
   const [dayOrder,setDayOrder]=React.useState({});
@@ -843,13 +888,16 @@ function TaskCalendar() {
     }
     return(
       <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 18px 12px",position:"sticky",top:0,zIndex:10,background:"rgba(242,245,252,0.95)",backdropFilter:"blur(8px)"}}>
-          <button className="pill-btn" onClick={()=>setView("week")} style={{background:`linear-gradient(135deg,${NAVY},${NAVY2})`,border:"none",borderRadius:"100px",color:"#fff",padding:"9px 16px",cursor:"pointer",fontSize:"13px",fontWeight:"700",boxShadow:`0 4px 0 rgba(0,0,0,0.2),0 6px 16px rgba(27,58,107,0.35)`,display:"flex",alignItems:"center",gap:"6px"}}>📅 See Week</button>
-          <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-            <button onClick={()=>setShowRoutines(true)} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"32px",height:"32px",borderRadius:"50%",cursor:"pointer",fontSize:"14px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.08)"}}>🔁</button>
-            <button onClick={()=>setShowLists(true)} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"32px",height:"32px",borderRadius:"50%",cursor:"pointer",fontSize:"14px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.08)"}}>📋</button>
-            <button onClick={()=>setShowCatManager(true)} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"32px",height:"32px",borderRadius:"50%",cursor:"pointer",fontSize:"15px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.08)"}}>⚙️</button>
-          </div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px 12px",position:"sticky",top:0,zIndex:10,background:"rgba(242,245,252,0.95)",backdropFilter:"blur(8px)"}}>
+          {/* Hamburger */}
+          <button onClick={()=>setShowSidebar(true)} style={{background:"none",border:"none",color:NAVY,cursor:"pointer",padding:"4px",display:"flex",flexDirection:"column",gap:"5px",alignItems:"center",justifyContent:"center",width:"32px",height:"32px",borderRadius:"8px"}}>
+            <span style={{display:"block",width:"18px",height:"2px",background:NAVY,borderRadius:"2px"}}/>
+            <span style={{display:"block",width:"18px",height:"2px",background:NAVY,borderRadius:"2px"}}/>
+            <span style={{display:"block",width:"18px",height:"2px",background:NAVY,borderRadius:"2px"}}/>
+          </button>
+          {/* See Week pill */}
+          <button className="pill-btn" onClick={()=>setView("week")} style={{background:`linear-gradient(135deg,${NAVY},${NAVY2})`,border:"none",borderRadius:"100px",color:"#fff",padding:"9px 18px",cursor:"pointer",fontSize:"13px",fontWeight:"700",boxShadow:`0 4px 0 rgba(0,0,0,0.2),0 6px 16px rgba(27,58,107,0.35)`,display:"flex",alignItems:"center",gap:"6px"}}>📅 See Week</button>
+          {/* Day nav */}
           <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
             <button className="nav-btn" onClick={()=>setCurrentDay(fmt(addDays(parseDate(currentDay),-1)))} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"32px",height:"32px",borderRadius:"50%",cursor:"pointer",fontSize:"16px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.08)"}}>‹</button>
             <button onClick={()=>setCurrentDay(todayStr())} style={{background:"none",border:"none",color:NAVY,fontSize:"12px",fontWeight:"700",cursor:"pointer",padding:"0 6px",letterSpacing:"0.05em",opacity:isToday?0.4:1}}>TODAY</button>
@@ -899,8 +947,8 @@ function TaskCalendar() {
 
   // ── WEEK VIEW ─────────────────────────────────────────────────────
   const renderWeek=()=>{
-    const weekDays=Array.from({length:5},(_,i)=>addDays(weekStart,i));
-    const wrl=`${weekDays[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})} — ${weekDays[4].toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;
+    const weekDays=Array.from({length:7},(_,i)=>addDays(weekStart,i));
+    const wrl=`${weekDays[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})} — ${weekDays[6].toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;
     return(
       <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px 10px",position:"sticky",top:0,zIndex:10,background:"rgba(242,245,252,0.95)",backdropFilter:"blur(8px)",borderBottom:"1px solid #E4EAF5"}}>
@@ -915,19 +963,19 @@ function TaskCalendar() {
             <button className="nav-btn" onClick={()=>setWeekStart(prev=>addDays(prev,7))} style={{background:"#fff",border:"1.5px solid #E0E6F0",color:NAVY,width:"28px",height:"28px",borderRadius:"50%",cursor:"pointer",fontSize:"14px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 5px rgba(0,0,0,0.07)"}}>›</button>
           </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",flex:1,gap:"1px",background:"#DDE5F2"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",flex:1,gap:"1px",background:"#DDE5F2"}}>
           {weekDays.map((day,i)=>{
             const dateStr=fmt(day),isToday=dateStr===todayStr(),isDragTarget=weekDragOverDay===dateStr;
             const dayTasks=getDayTasks(dateStr);
             return(
               <div key={i} onDrop={e=>onWeekDrop(e,dateStr)} onDragOver={e=>{e.preventDefault();setWeekDragOverDay(dateStr);}} onDragLeave={()=>setWeekDragOverDay(null)}
-                style={{background:isDragTarget?"#E8F0FF":isToday?"#EDF2FF":BG,display:"flex",flexDirection:"column",minHeight:"calc(100vh - 73px)"}}>
-                <div onClick={()=>{setCurrentDay(dateStr);setView("day");}} style={{padding:"12px 8px 8px",borderBottom:isToday?`2px solid ${NAVY}`:"2px solid transparent",cursor:"pointer",textAlign:"center"}}>
-                  <div style={{fontSize:"8px",color:isToday?NAVY:"#AAB8D0",letterSpacing:"0.15em",fontWeight:"700",marginBottom:"2px"}}>{DAY_SHORT[day.getDay()]}</div>
-                  <div style={{fontSize:"20px",fontWeight:"700",color:isToday?NAVY:"#2A3A5A",lineHeight:1}}>{day.getDate()}</div>
-                  {isToday&&<div style={{width:"5px",height:"5px",borderRadius:"50%",background:NAVY,margin:"4px auto 0"}}/>}
+                style={{background:isDragTarget?"#E8F0FF":isToday?"#EDF2FF":BG,display:"flex",flexDirection:"column",minHeight:"calc(100vh - 68px)"}}>
+                <div onClick={()=>{setCurrentDay(dateStr);setView("day");}} style={{padding:"8px 4px 6px",borderBottom:isToday?`2px solid ${NAVY}`:"2px solid transparent",cursor:"pointer",textAlign:"center"}}>
+                  <div style={{fontSize:"7px",color:isToday?NAVY:"#AAB8D0",letterSpacing:"0.08em",fontWeight:"700",marginBottom:"1px"}}>{DAY_SHORT[day.getDay()]}</div>
+                  <div style={{fontSize:"15px",fontWeight:"700",color:isToday?NAVY:"#2A3A5A",lineHeight:1}}>{day.getDate()}</div>
+                  {isToday&&<div style={{width:"4px",height:"4px",borderRadius:"50%",background:NAVY,margin:"3px auto 0"}}/>}
                 </div>
-                <div style={{padding:"6px 5px 8px",display:"flex",flexDirection:"column",gap:"5px",flex:1}}>
+                <div style={{padding:"4px 3px 6px",display:"flex",flexDirection:"column",gap:"4px",flex:1}}>
                   {dayTasks.map(task=>(
                     <WeekTaskCard key={task.id} task={task} dateStr={dateStr} isCompleted={isCompleted(task,dateStr)}
                       onDone={toggleDone} onDelete={deleteTask}
@@ -1002,6 +1050,11 @@ function TaskCalendar() {
         {view==="month"&&renderMonth()}
       </div>
       {showModal&&<TaskModal selectedDay={modalDay} onClose={()=>{setShowModal(false);setEditingTask(null);}} onSave={handleModalSave} getNextColor={getNextColor} categories={categories} editTask={editingTask}/>}
+      <Sidebar open={showSidebar} onClose={()=>setShowSidebar(false)}
+        onRoutines={()=>setShowRoutines(true)}
+        onLists={()=>setShowLists(true)}
+        onCategories={()=>setShowCatManager(true)}
+      />
       {showCatManager&&<CategoryManager categories={categories} onClose={()=>setShowCatManager(false)} onSave={handleSaveCategories}/>}
       {showLists&&<ListsPanel onClose={()=>setShowLists(false)}/>}
       {showRoutines&&<RoutinesPanel dailyTasks={allDailyTasks} subtasksMap={subtasksMap} onClose={()=>setShowRoutines(false)} onOpenRoutine={(task)=>setRoutineTask(task)}/>}
