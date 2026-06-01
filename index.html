@@ -236,6 +236,119 @@ function RoutineSheet({ task, subtasks, onClose, onSaveSubtasks }) {
   );
 }
 
+// ─── COMPLETED FOLDER ────────────────────────────────────────────────
+function CompletedFolder({ tasks, dateStr, onReactivate, onDelete, categories }) {
+  const [open, setOpen] = React.useState(false);
+  const count = tasks.length;
+
+  return (
+    <>
+      {/* Folder tab — sits at the bottom of the task stack */}
+      <div
+        onClick={() => setOpen(true)}
+        style={{
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          background:"#fff", borderRadius:"16px", padding:"13px 18px",
+          border:"1.5px solid #E0E8FF",
+          boxShadow:"0 2px 10px rgba(27,58,107,0.07)",
+          cursor:"pointer", marginTop:"4px",
+          animation:"slideUp 0.2s ease",
+        }}>
+        <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+          <div style={{
+            width:"32px",height:"32px",borderRadius:"10px",
+            background:"linear-gradient(135deg,#B0BCCE,#9AAABB)",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:"15px", flexShrink:0,
+            boxShadow:"0 2px 6px rgba(0,0,0,0.1)"
+          }}>✓</div>
+          <div>
+            <div style={{fontSize:"14px",color:"#5A6A80",fontWeight:"700"}}>
+              Completed <span style={{color:"#9AAABB"}}>({count})</span>
+            </div>
+            <div style={{fontSize:"11px",color:"#B0BCCE",marginTop:"1px"}}>Tap to view</div>
+          </div>
+        </div>
+        <div style={{fontSize:"16px",color:"#C0CCDF"}}>›</div>
+      </div>
+
+      {/* Full-screen completed sheet */}
+      {open && (
+        <div style={{position:"fixed",inset:0,zIndex:410,background:BG,display:"flex",flexDirection:"column",animation:"slideInRight 0.22s ease"}}>
+          {/* Header */}
+          <div style={{
+            background:`linear-gradient(135deg,#8A9BB5,#6E839E)`,
+            padding:"20px 20px 22px",
+            paddingTop:"max(20px,env(safe-area-inset-top,20px))",
+            position:"relative",overflow:"hidden"
+          }}>
+            <div style={{position:"absolute",top:0,left:0,right:0,height:"55%",background:"linear-gradient(180deg,rgba(255,255,255,0.15) 0%,transparent 100%)",pointerEvents:"none"}}/>
+            <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+              <button onClick={()=>setOpen(false)} style={{background:"rgba(0,0,0,0.15)",border:"none",borderRadius:"50%",color:"#fff",width:"34px",height:"34px",cursor:"pointer",fontSize:"18px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,backdropFilter:"blur(4px)"}}>‹</button>
+              <div style={{fontSize:"24px",lineHeight:1,flexShrink:0}}>✓</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:"8px",fontWeight:"800",color:"rgba(255,255,255,0.6)",letterSpacing:"0.18em",marginBottom:"3px"}}>TODAY</div>
+                <div style={{fontSize:"20px",fontWeight:"700",color:"#fff",lineHeight:1.2,textShadow:"0 1px 4px rgba(0,0,0,0.2)"}}>Completed ({count})</div>
+              </div>
+            </div>
+          </div>
+
+          {/* List */}
+          <div style={{flex:1,overflowY:"auto",padding:"20px 18px 32px"}}>
+            <div style={{fontSize:"12px",color:"#AAB8D0",marginBottom:"14px",letterSpacing:"0.04em"}}>Tap a task to bring it back to active</div>
+            <div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
+              {tasks.map(task => {
+                const cat = task.categoryId ? (categories||[]).find(c=>c.id===task.categoryId) : null;
+                return (
+                  <div key={task.id} style={{
+                    background:"#fff",borderRadius:"14px",
+                    padding:"13px 15px",
+                    boxShadow:"0 2px 8px rgba(27,58,107,0.06)",
+                    border:"1.5px solid #EEF2FA",
+                    display:"flex",alignItems:"center",gap:"12px",
+                  }}>
+                    {/* Color swatch */}
+                    <div style={{width:"4px",alignSelf:"stretch",borderRadius:"4px",background:`linear-gradient(180deg,${task.color},${task.color}88)`,flexShrink:0}}/>
+                    {/* Icon */}
+                    <div style={{fontSize:"20px",lineHeight:1,flexShrink:0,opacity:0.5}}>{task.icon||"📌"}</div>
+                    {/* Text */}
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:"15px",fontWeight:"600",color:"#9AAABB",textDecoration:"line-through",lineHeight:1.3,wordBreak:"break-word"}}>{task.title}</div>
+                      {(task.time||cat)&&(
+                        <div style={{fontSize:"11px",color:"#C0CCDF",marginTop:"3px"}}>
+                          {task.time&&<span>🕐 {task.time}</span>}
+                          {task.time&&cat&&<span style={{margin:"0 4px"}}>·</span>}
+                          {cat&&<span>{cat.title}</span>}
+                        </div>
+                      )}
+                    </div>
+                    {/* Re-activate button */}
+                    <button
+                      onClick={()=>{ onReactivate(task.id, dateStr); if(tasks.length<=1) setOpen(false); }}
+                      style={{
+                        background:"none",border:"1.5px solid #D0DCEE",borderRadius:"20px",
+                        color:"#8A9BB5",cursor:"pointer",fontSize:"11px",
+                        padding:"5px 11px",fontFamily:"inherit",fontWeight:"600",
+                        whiteSpace:"nowrap",flexShrink:0,transition:"all 0.12s"
+                      }}
+                      onMouseEnter={e=>{e.currentTarget.style.background="#F4F7FF";}}
+                      onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
+                      ↩ Undo
+                    </button>
+                    {/* Delete */}
+                    <button onClick={()=>{ onDelete(task.id); if(tasks.length<=1) setOpen(false); }}
+                      style={{background:"none",border:"none",color:"#D8E0EE",cursor:"pointer",fontSize:"16px",padding:"4px 2px",flexShrink:0}}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── ROUTINES PANEL ──────────────────────────────────────────────────
 function RoutinesPanel({ dailyTasks, subtasksMap, onClose, onOpenRoutine }) {
   return (
@@ -953,25 +1066,42 @@ function TaskCalendar() {
         </div>
         <div style={{height:"2px",background:`linear-gradient(90deg,${NAVY}33,transparent)`,margin:"0 22px 20px"}}/>
         <div style={{padding:"0 18px",display:"flex",flexDirection:"column",gap:"12px",flex:1}}>
-          {displayTasks.length===0&&(
-            <div style={{textAlign:"center",padding:"48px 20px",animation:"fadeIn 0.4s ease"}}>
-              <div style={{fontSize:"48px",marginBottom:"12px"}}>🗒️</div>
-              <div style={{fontSize:"16px",color:"#AAB8D0",fontWeight:"500"}}>Nothing scheduled</div>
-              <div style={{fontSize:"13px",color:"#C5D0E0",marginTop:"4px"}}>Tap + to add a task</div>
-            </div>
-          )}
-          {displayTasks.map((task,i)=>(
-            <DayTaskCard key={task.id} task={task} index={i} dateStr={currentDay}
-              isCompleted={isCompleted(task,currentDay)} onDone={toggleDone}
-              onDelete={deleteTask} onEdit={openEdit}
-              onOpenRoutine={(t)=>setRoutineTask(t)}
-              categories={categories}
-              isDragging={dayDragState.draggingId===task.id}
-              dragOver={dayDragState.draggingId!==null&&dayDragState.draggingId!==task.id&&dayDragState.overIndex===i}
-              onPointerDown={(e)=>handlePointerDown(e,task.id)}
-              subtasks={subtasksMap[task.id]||[]}
-            />
-          ))}
+          {(() => {
+            const activeTasks = displayTasks.filter(t => !isCompleted(t, currentDay));
+            const doneTasks   = displayTasks.filter(t =>  isCompleted(t, currentDay));
+            return (
+              <>
+                {activeTasks.length===0&&doneTasks.length===0&&(
+                  <div style={{textAlign:"center",padding:"48px 20px",animation:"fadeIn 0.4s ease"}}>
+                    <div style={{fontSize:"48px",marginBottom:"12px"}}>🗒️</div>
+                    <div style={{fontSize:"16px",color:"#AAB8D0",fontWeight:"500"}}>Nothing scheduled</div>
+                    <div style={{fontSize:"13px",color:"#C5D0E0",marginTop:"4px"}}>Tap + to add a task</div>
+                  </div>
+                )}
+                {activeTasks.map((task,i)=>(
+                  <DayTaskCard key={task.id} task={task} index={i} dateStr={currentDay}
+                    isCompleted={false} onDone={toggleDone}
+                    onDelete={deleteTask} onEdit={openEdit}
+                    onOpenRoutine={(t)=>setRoutineTask(t)}
+                    categories={categories}
+                    isDragging={dayDragState.draggingId===task.id}
+                    dragOver={dayDragState.draggingId!==null&&dayDragState.draggingId!==task.id&&dayDragState.overIndex===i}
+                    onPointerDown={(e)=>handlePointerDown(e,task.id)}
+                    subtasks={subtasksMap[task.id]||[]}
+                  />
+                ))}
+                {doneTasks.length>0&&(
+                  <CompletedFolder
+                    tasks={doneTasks}
+                    dateStr={currentDay}
+                    onReactivate={toggleDone}
+                    onDelete={deleteTask}
+                    categories={categories}
+                  />
+                )}
+              </>
+            );
+          })()}
         </div>
         <div style={{height:"90px"}}/>
         <div style={{position:"fixed",bottom:"max(24px,env(safe-area-inset-bottom,24px))",right:"20px",zIndex:20}}>
